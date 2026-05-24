@@ -1,66 +1,126 @@
-# RTU Faculty Evaluation System
+🎓 RTU Faculty Evaluation System
 
-A modern web-based Faculty Evaluation System for Rizal Technological University.
+A web-based Faculty Evaluation System for Rizal Technological University (RTU). Built using HTML, JavaScript, Tailwind CSS, LocalStorage, and jsPDF.
 
-## 🚀 Deployment (GitHub Pages)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-1. Upload all files in this folder **directly to your GitHub repository root**.
-2. Go to **Settings → Pages → Source → Deploy from branch → main → / (root)**.
-3. Your site will be live at: `https://<your-username>.github.io/<repo-name>/`
+✨ FEATURES
 
-## 📁 File Structure
+• Student Evaluation Portal
+• Faculty Dashboard
+• Admin Analytics Dashboard
+• Anonymous Student Comments
+• Password Reset System
+• PDF Receipt Export
+• PDF Admin Report Export
+• Responsive UI using Tailwind CSS
+• LocalStorage-based data handling
 
-```
-/ (repository root)
-├── index.html        ← Main application (all-in-one)
-├── rtu-logo.png      ← Place your RTU logo HERE (at root, not in a folder)
-├── .nojekyll         ← Prevents GitHub Pages build issues
-└── README.md
-```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-## 🖼️ Adding the RTU Logo
+🛠️ TECHNOLOGIES USED
 
-Place your official RTU logo file **directly in the root folder** (same level as index.html) and name it exactly:
+• HTML5
+• JavaScript
+• Tailwind CSS
+• jsPDF
+• jsPDF AutoTable
+• LocalStorage
 
-```
-rtu-logo.png
-```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-> If the image file is missing, an SVG fallback logo is shown automatically.
+🔐 DEFAULT LOGIN CREDENTIALS
 
-## 🔐 Default Login Credentials
+👨‍🎓 STUDENT LOGIN
 
-The login form auto-detects the account type from the username format — no role selection needed.
+Username Format:
+2024-12345
 
-### Student
-| Field          | Value                       |
-|----------------|-----------------------------|
-| Username       | Any format: `2024-XXXXXX`  |
-| Password       | `123456789`                 |
+Default Password:
+123456789
 
-### Faculty
-| Faculty Name        | Username  | Password   |
-|---------------------|-----------|------------|
-| Reyes, Adrian M.    | FAC-1001  | faculty123 |
-| Santos, Camille D.  | FAC-1002  | faculty123 |
-| Navarro, Ethan J.   | FAC-1003  | faculty123 |
-| Cruz, Bianca A.     | FAC-1004  | faculty123 |
-| Mendoza, Rafael P.  | FAC-1005  | faculty123 |
-| Flores, Nicole T.   | FAC-1006  | faculty123 |
-| Garcia, Vincent L.  | FAC-1007  | faculty123 |
-| Torres, Samantha C. | FAC-1008  | faculty123 |
+Example:
+Username: 2024-12345
+Password: 123456789
 
-### Admin
-| Username | Password  |
-|----------|-----------|
-| admin    | admin123  |
+⚠️ Any valid student number format (YYYY-NUMBER) automatically creates a student account on first login.
 
-## ✅ Features
-- Auto-detect login role from username (no role tabs)
-- Student evaluation with required comments
-- Faculty dashboard: anonymous comments only, no scores
-- Admin dashboard: analytics, filters, PDF export, faculty management
-- Evaluation receipt with PDF save & print
-- Password change / forgot password flow
-- Receipt deduplication fix
-- RTU branding with logo fallback
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+👨‍🏫 FACULTY LOGIN
+
+Default Faculty Password:
+faculty123
+
+Faculty Accounts:
+
+• FAC-1001 — REYES, ADRIAN M.
+• FAC-1002 — SANTOS, CAMILLE D.
+• FAC-1003 — NAVARRO, ETHAN J.
+• FAC-1004 — CRUZ, BIANCA A.
+• FAC-1005 — MENDOZA, RAFAEL P.
+• FAC-1006 — FLORES, NICOLE T.
+• FAC-1007 — GARCIA, VINCENT L.
+• FAC-1008 — TORRES, SAMANTHA C.
+
+Example:
+Username: FAC-1001
+Password: faculty123
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🛡️ ADMIN LOGIN
+
+Username: admin
+Password: admin123
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📌 IMPORTANT NOTES
+
+• Data is stored using browser LocalStorage
+• Evaluations are anonymous
+• Passwords are hashed using a simple hash function
+• Refreshing the page clears saved evaluations due to the testing reset code inside the system
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+👥 SYSTEM ROLES
+
+🎓 STUDENT
+• Evaluate faculty members
+• Submit comments
+• Generate evaluation receipt
+• Save PDF receipt
+
+👨‍🏫 FACULTY
+• View assigned subjects
+• Read anonymous student comments
+
+🛡️ ADMIN
+• View analytics dashboard
+• Filter evaluations
+• Export PDF reports
+• Reset faculty passwords
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🖼️ SCREENSHOTS
+
+Add your screenshots here.
+
+Example:
+screenshots/login.png
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+👨‍💻 DEVELOPER
+
+Created for academic purposes at
+Rizal Technological University (RTU)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📄 LICENSE
+
+This project is for educational purposes only.
