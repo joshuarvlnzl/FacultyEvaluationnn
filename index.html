@@ -56,8 +56,8 @@ const SEMESTER    = "2nd Semester";
 const COURSE      = "Bachelor of Science in Computer Engineering / 2nd Year";
 
 const SUBJECTS = [
-  { no:"1",  classCode:"141218",   subjectCode:"CPE203",    description:"Numerical Methods",                                 facultyId:"FAC-1001", faculty:"REYES, ADRIAN M." },
-  { no:"2",  classCode:"141219",   subjectCode:"CPE204",    description:"Software Design",                                   facultyId:"FAC-1002", faculty:"SANTOS, CAMILLE D." },
+  { no:"1",  classCode:"141218",   subjectCode:"CPE203",    description:"Numerical Methods",                                facultyId:"FAC-1001", faculty:"REYES, ADRIAN M." },
+  { no:"2",  classCode:"141219",   subjectCode:"CPE204",    description:"Software Design",                                  facultyId:"FAC-1002", faculty:"SANTOS, CAMILLE D." },
   { no:"3",  classCode:"141220",   subjectCode:"CPE204L",   description:"Software Design Laboratory",                        facultyId:"FAC-1002", faculty:"SANTOS, CAMILLE D." },
   { no:"4",  classCode:"141221",   subjectCode:"ECE01",     description:"Fundamentals of Electronic Circuits",               facultyId:"FAC-1003", faculty:"NAVARRO, ETHAN J." },
   { no:"5",  classCode:"141222",   subjectCode:"ECE01L",    description:"Fundamentals of Electronic Circuits Laboratory",    facultyId:"FAC-1003", faculty:"NAVARRO, ETHAN J." },
@@ -385,7 +385,7 @@ function appHeader(subtitle) {
 function renderLogin(errMsg='') {
   app().innerHTML = `<div class="flex min-h-screen fade-in">
     ${brandingPanel()}
-    <div class="flex-1 flex items-start justify-center overflow-y-auto" style="background:#F4F7FC;padding:60px 52px 48px">
+    <div class="flex-1 flex items-start justify-center overflow-y-auto" style="background: linear-gradient(rgba(244, 247, 252, 0.85), rgba(244, 247, 252, 0.85)), url('rtu-background.png') center/cover no-repeat; padding:60px 52px 48px">
       <div class="w-full max-w-sm">
         <div class="text-2xl font-bold text-center" style="color:#1A1A2E">Welcome Back Rizalianos</div>
         <div class="text-sm text-center mt-1" style="color:#6B7280">Sign in to your RTU account</div>
@@ -393,7 +393,7 @@ function renderLogin(errMsg='') {
         <div class="flex flex-col gap-3 mt-7">
           <div class="flex flex-col gap-1">
             <label class="text-xs font-bold" style="color:#1A1A2E">Username</label>
-            <input id="loginId" type="text"
+            <input id="loginId" type="text" placeholder="Enter your username"
               class="rounded-lg px-3 py-2 text-sm outline-none transition-all"
               style="background:#EFF3FA;border:1.5px solid #D1D9E6;color:#1A1A2E"
               onfocus="this.style.borderColor='#003087'" onblur="this.style.borderColor='#D1D9E6'"/>
@@ -448,7 +448,7 @@ function doLogin() {
 function renderForgotPassword(errMsg='', okMsg='') {
   app().innerHTML = `<div class="flex min-h-screen fade-in">
     ${brandingPanel()}
-    <div class="flex-1 flex items-start justify-center overflow-y-auto" style="background:#F4F7FC;padding:60px 52px 48px">
+    <div class="flex-1 flex items-start justify-center overflow-y-auto" style="background: linear-gradient(rgba(244, 247, 252, 0.85), rgba(244, 247, 252, 0.85)), url('rtu-background.png') center/cover no-repeat; padding:60px 52px 48px">
       <div class="w-full max-w-sm">
         <div class="text-2xl font-bold text-center" style="color:#1A1A2E">Change Password</div>
         <div class="text-sm text-center mt-1 mb-6" style="color:#6B7280">Enter your credentials to reset your password</div>
@@ -502,7 +502,6 @@ function doChangePassword() {
 
 function renderSubjectSelect() {
   if (isAllEvaluated(AppState.userId)) { renderReceipt(); return; }
-  // Pass true to enable the fade-in animation on initial load
   _renderSubjectTable(true);
 }
 
@@ -514,7 +513,6 @@ function _renderSubjectTable(isInitialLoad = false) {
     const statusTxt   = evaluated ? 'EVALUATED' : 'PENDING';
     const selected    = AppState.selectedRow === i;
     
-    // Updated Highlight: Uses a clearer blue background and makes the text slightly bolder when selected
     const rowClass = selected ? 'bg-blue-100 font-semibold' : 'hover:bg-blue-50';
 
     return `<tr class="cursor-pointer transition-colors ${rowClass}" onclick="selectRow(${i})">
@@ -529,8 +527,6 @@ function _renderSubjectTable(isInitialLoad = false) {
 
   const selected = AppState.selectedRow >= 0 ? SUBJECTS[AppState.selectedRow] : null;
   const btnTxt   = !selected ? 'Select a Faculty' : (evals[selected.classCode] ? 'Review Evaluation' : 'Evaluate Selected Faculty');
-
-  // Prevent blinking on every click by conditionally applying 'fade-in'
   const fadeClass = isInitialLoad ? 'fade-in' : '';
 
   app().innerHTML = `<div class="flex flex-col min-h-screen ${fadeClass}">
@@ -562,7 +558,6 @@ function _renderSubjectTable(isInitialLoad = false) {
 
 function selectRow(i) {
   AppState.selectedRow = i;
-  // Pass false to update the UI without triggering the page flash animation
   _renderSubjectTable(false);
 }
 
@@ -724,7 +719,6 @@ function renderReview(classCode) {
 
 function backFromReview() {
   AppState.selectedRow = -1;
-  // Trigger fade animation on back navigation
   _renderSubjectTable(true);
 }
 
@@ -797,7 +791,6 @@ function renderReceipt() {
 
 function backFromReceipt() {
   AppState.selectedRow = -1;
-  // Trigger fade animation on back navigation
   _renderSubjectTable(true);
 }
 
@@ -1153,6 +1146,13 @@ function doLogout() {
   AppState.logout();
   renderLogin();
 }
+
+// Added block: Clears any previously saved evaluations/comments in your browser's local storage upon reload to reset testing data
+Object.keys(localStorage).forEach(key => {
+  if (key.startsWith('rtu_evals_')) {
+    localStorage.removeItem(key);
+  }
+});
 
 seedAccounts();
 renderLogin();
