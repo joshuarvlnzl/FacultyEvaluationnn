@@ -36,9 +36,6 @@
   ::-webkit-scrollbar { width:6px; }
   ::-webkit-scrollbar-track { background:transparent; }
   ::-webkit-scrollbar-thumb { background:#D1D9E6; border-radius:3px; }
-  .role-tab { transition: all .2s; }
-  .role-tab.active { background: #003087; color: #fff; }
-  .role-tab:not(.active) { background: #EFF3FA; color: #6B7280; }
   .rating-btn { transition: all .15s; }
   .rating-btn.selected { background: #003087 !important; color: white !important; }
   .rating-btn:not(.selected):hover { background: #DDEAFF; color: #003087; }
@@ -54,38 +51,22 @@
 <div id="app"></div>
 
 <script type="text/javascript">
-/* ================================================================
-   TYPES (TypeScript-style interfaces as JSDoc)
-================================================================ */
-/**
- * @typedef {'student'|'faculty'|'admin'} UserRole
- * @typedef {{ role: UserRole, id: string, passwordHash: string, name?: string }} UserRecord
- * @typedef {{ scores: Record<string,number>, comments: string, refNo: string, ts: number, classCode: string }} EvalRecord
- * @typedef {{ classCode: string, subjectCode: string, description: string, facultyId: string, faculty: string }} Subject
- * @typedef {{ title: string, criteria: string[] }} Category
- */
-
-/* ================================================================
-   CONSTANTS / SEED DATA
-================================================================ */
 const SCHOOL_YEAR = "2025 – 2026";
 const SEMESTER    = "2nd Semester";
 const COURSE      = "Bachelor of Science in Computer Engineering / 2nd Year";
 
-/** @type {Subject[]} */
 const SUBJECTS = [
   { no:"1",  classCode:"141218",   subjectCode:"CPE203",    description:"Numerical Methods",                                 facultyId:"FAC-1001", faculty:"REYES, ADRIAN M." },
   { no:"2",  classCode:"141219",   subjectCode:"CPE204",    description:"Software Design",                                   facultyId:"FAC-1002", faculty:"SANTOS, CAMILLE D." },
-  { no:"3",  classCode:"141220",   subjectCode:"CPE204L",   description:"Software Design Laboratory",                       facultyId:"FAC-1002", faculty:"SANTOS, CAMILLE D." },
-  { no:"4",  classCode:"141221",   subjectCode:"ECE01",     description:"Fundamentals of Electronic Circuits",              facultyId:"FAC-1003", faculty:"NAVARRO, ETHAN J." },
-  { no:"5",  classCode:"141222",   subjectCode:"ECE01L",    description:"Fundamentals of Electronic Circuits Laboratory",   facultyId:"FAC-1003", faculty:"NAVARRO, ETHAN J." },
-  { no:"6",  classCode:"141223",   subjectCode:"CPE205",    description:"Assembly Language Programming",                    facultyId:"FAC-1004", faculty:"CRUZ, BIANCA A." },
-  { no:"7",  classCode:"1310064",  subjectCode:"GE-ELEC14", description:"Technical Communication",                         facultyId:"FAC-1005", faculty:"MENDOZA, RAFAEL P." },
-  { no:"8",  classCode:"1313032",  subjectCode:"GE03",      description:"The Contemporary World",                           facultyId:"FAC-1006", faculty:"FLORES, NICOLE T." },
+  { no:"3",  classCode:"141220",   subjectCode:"CPE204L",   description:"Software Design Laboratory",                        facultyId:"FAC-1002", faculty:"SANTOS, CAMILLE D." },
+  { no:"4",  classCode:"141221",   subjectCode:"ECE01",     description:"Fundamentals of Electronic Circuits",               facultyId:"FAC-1003", faculty:"NAVARRO, ETHAN J." },
+  { no:"5",  classCode:"141222",   subjectCode:"ECE01L",    description:"Fundamentals of Electronic Circuits Laboratory",    facultyId:"FAC-1003", faculty:"NAVARRO, ETHAN J." },
+  { no:"6",  classCode:"141223",   subjectCode:"CPE205",    description:"Assembly Language Programming",                     facultyId:"FAC-1004", faculty:"CRUZ, BIANCA A." },
+  { no:"7",  classCode:"1310064",  subjectCode:"GE-ELEC14", description:"Technical Communication",                           facultyId:"FAC-1005", faculty:"MENDOZA, RAFAEL P." },
+  { no:"8",  classCode:"1313032",  subjectCode:"GE03",      description:"The Contemporary World",                            facultyId:"FAC-1006", faculty:"FLORES, NICOLE T." },
   { no:"9",  classCode:"13100072", subjectCode:"PE04",      description:"Physical Activities Towards Health & Fitness II", facultyId:"FAC-1007", faculty:"GARCIA, VINCENT L." },
 ];
 
-/** @type {Category[]} */
 const CATEGORIES = [
   { title:"I. Teaching Effectiveness", criteria:[
     "Presents lessons clearly and understandably",
@@ -122,9 +103,6 @@ const CATEGORIES = [
 
 const ALL_CRITERIA = CATEGORIES.flatMap(c => c.criteria);
 
-/* ================================================================
-   SIMPLE HASH (browser-compatible, no plaintext storage)
-================================================================ */
 function simpleHash(str) {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
@@ -135,62 +113,54 @@ function simpleHash(str) {
   return 'h' + Math.abs(hash).toString(36);
 }
 
-/* ================================================================
-   STORAGE (in-memory + localStorage)
-================================================================ */
-const _mem = {};
+const memoryCache = {};
 const Store = {
   get(k) {
     try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; }
-    catch { return _mem[k] || null; }
+    catch { return memoryCache[k] || null; }
   },
   set(k, v) {
     try { localStorage.setItem(k, JSON.stringify(v)); } catch {}
-    _mem[k] = v;
+    memoryCache[k] = v;
   },
 
-  // Users DB: { [id]: { role, passwordHash, name } }
   getUsers() { return this.get('rtu_users_v2') || {}; },
   setUsers(u) { this.set('rtu_users_v2', u); },
 
-  // Evals: keyed by studentId → { [classCode]: EvalRecord }
   getEvals(studentId) { return this.get('rtu_evals_' + studentId) || {}; },
   saveEval(studentId, classCode, data) {
     const evals = this.getEvals(studentId);
-    if (!evals[classCode]) { // prevent duplicates
+    if (!evals[classCode]) {
       evals[classCode] = { ...data, classCode };
       this.set('rtu_evals_' + studentId, evals);
     }
   },
   getEval(studentId, classCode) { return this.getEvals(studentId)[classCode] || null; },
 
-  // Admin: get all eval records (anonymized) for a facultyId
   getAllEvalsForFaculty(facultyId) {
     const users = this.getUsers();
     const results = [];
-    // Iterate all student keys in localStorage
     const keys = [];
     try { for (let i = 0; i < localStorage.length; i++) keys.push(localStorage.key(i)); }
-    catch { Object.keys(_mem).forEach(k => keys.push(k)); }
+    catch { Object.keys(memoryCache).forEach(k => keys.push(k)); }
     keys.filter(k => k && k.startsWith('rtu_evals_')).forEach(k => {
       const studentId = k.replace('rtu_evals_', '');
       const evals = this.get(k) || {};
       Object.values(evals).forEach(ev => {
         const subj = SUBJECTS.find(s => s.classCode === ev.classCode);
         if (subj && subj.facultyId === facultyId) {
-          results.push({ ...ev }); // anonymous – no studentId
+          results.push({ ...ev });
         }
       });
     });
     return results;
   },
 
-  // Admin: get all evals across all students (anonymized)
   getAllEvals() {
     const results = [];
     const keys = [];
     try { for (let i = 0; i < localStorage.length; i++) keys.push(localStorage.key(i)); }
-    catch { Object.keys(_mem).forEach(k => keys.push(k)); }
+    catch { Object.keys(memoryCache).forEach(k => keys.push(k)); }
     keys.filter(k => k && k.startsWith('rtu_evals_')).forEach(k => {
       const evals = this.get(k) || {};
       Object.values(evals).forEach(ev => results.push({ ...ev }));
@@ -198,12 +168,11 @@ const Store = {
     return results;
   },
 
-  // Count distinct students who completed all evals
   getCompletedStudentCount() {
     let count = 0;
     const keys = [];
     try { for (let i = 0; i < localStorage.length; i++) keys.push(localStorage.key(i)); }
-    catch { Object.keys(_mem).forEach(k => keys.push(k)); }
+    catch { Object.keys(memoryCache).forEach(k => keys.push(k)); }
     keys.filter(k => k && k.startsWith('rtu_evals_')).forEach(k => {
       const evals = this.get(k) || {};
       if (Object.keys(evals).length >= SUBJECTS.length) count++;
@@ -214,7 +183,7 @@ const Store = {
     let count = 0;
     const keys = [];
     try { for (let i = 0; i < localStorage.length; i++) keys.push(localStorage.key(i)); }
-    catch { Object.keys(_mem).forEach(k => keys.push(k)); }
+    catch { Object.keys(memoryCache).forEach(k => keys.push(k)); }
     keys.filter(k => k && k.startsWith('rtu_evals_')).forEach(k => {
       const evals = this.get(k) || {};
       count += Object.keys(evals).length;
@@ -223,14 +192,10 @@ const Store = {
   }
 };
 
-/* ================================================================
-   SEED DEFAULT ACCOUNTS
-================================================================ */
 function seedAccounts() {
   const users = Store.getUsers();
   let changed = false;
 
-  // Faculty accounts
   const facultyDefaults = [
     { id:'FAC-1001', name:'REYES, ADRIAN M.',   pw:'faculty123' },
     { id:'FAC-1002', name:'SANTOS, CAMILLE D.', pw:'faculty123' },
@@ -248,7 +213,6 @@ function seedAccounts() {
     }
   });
 
-  // Admin account
   if (!users['admin']) {
     users['admin'] = { role:'admin', passwordHash: simpleHash('admin123'), name:'System Administrator' };
     changed = true;
@@ -257,9 +221,6 @@ function seedAccounts() {
   if (changed) Store.setUsers(users);
 }
 
-/* ================================================================
-   AUTH MODULE
-================================================================ */
 const Auth = {
   detectRole(id) {
     id = id.trim();
@@ -282,15 +243,12 @@ const Auth = {
       const sid = this.normalizeStudentId(id);
       const users = Store.getUsers();
       if (users[sid]) {
-        // has custom password
         if (users[sid].passwordHash !== simpleHash(password)) {
           return { success: false, error: 'Invalid credentials.' };
         }
       } else {
-        // default: student number format + default password
         if (!/^\d{4}-\d+$/.test(id)) return { success: false, error: 'Invalid student number.' };
         if (password !== '123456789') return { success: false, error: 'Invalid credentials.' };
-        // create student record
         users[sid] = { role: 'student', passwordHash: simpleHash('123456789'), name: sid };
         Store.setUsers(users);
       }
@@ -298,7 +256,6 @@ const Auth = {
     }
 
     const users = Store.getUsers();
-    const upper = role === 'faculty' ? id.toUpperCase() : id.toLowerCase();
     const key = role === 'faculty' ? id.toUpperCase() : 'admin';
     const record = users[key] || users[id];
     if (!record) return { success: false, error: 'Account not found.' };
@@ -319,7 +276,6 @@ const Auth = {
 
     const record = users[key];
     if (!record && role === 'student') {
-      // first time change from default
       if (currentPw !== '123456789') return { success: false, error: 'Current password is incorrect.' };
     } else if (!record) {
       return { success: false, error: 'Account not found.' };
@@ -338,13 +294,10 @@ const Auth = {
   }
 };
 
-/* ================================================================
-   APP STATE
-================================================================ */
 const AppState = {
-  /** @type {UserRole|null} */ role: null,
-  /** @type {string|null} */   userId: null,
-  /** @type {string|null} */   userName: null,
+  role: null,
+  userId: null,
+  userName: null,
   selectedRow: -1,
   liveScores: {},
 
@@ -364,9 +317,6 @@ const AppState = {
   }
 };
 
-/* ================================================================
-   HELPERS
-================================================================ */
 function app() { return document.getElementById('app'); }
 function escHTML(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function genRefNo() {
@@ -396,9 +346,6 @@ function logoImg(cls) {
           <span style="display:none" class="${cls} items-center justify-center">${RTU_LOGO_SVG}</span>`;
 }
 
-/* ================================================================
-   SHARED UI COMPONENTS
-================================================================ */
 function brandingPanel() {
   return `<div class="w-96 min-w-72 flex-shrink-0 flex items-start justify-center p-12 overflow-y-auto" style="background:linear-gradient(145deg,#003087 0%,#001A5C 100%)">
     <div class="flex flex-col items-center my-auto gap-0 w-full">
@@ -435,9 +382,6 @@ function appHeader(subtitle) {
   </div>`;
 }
 
-/* ================================================================
-   VIEW: LOGIN
-================================================================ */
 function renderLogin(errMsg='') {
   app().innerHTML = `<div class="flex min-h-screen fade-in">
     ${brandingPanel()}
@@ -501,9 +445,6 @@ function doLogin() {
   }
 }
 
-/* ================================================================
-   VIEW: FORGOT PASSWORD
-================================================================ */
 function renderForgotPassword(errMsg='', okMsg='') {
   app().innerHTML = `<div class="flex min-h-screen fade-in">
     ${brandingPanel()}
@@ -559,9 +500,6 @@ function doChangePassword() {
   setTimeout(() => renderLogin(), 1800);
 }
 
-/* ================================================================
-   VIEW: STUDENT — SUBJECT SELECTION
-================================================================ */
 function renderSubjectSelect() {
   if (isAllEvaluated(AppState.userId)) { renderReceipt(); return; }
   _renderSubjectTable();
@@ -627,9 +565,6 @@ function doAction() {
   else renderRating(AppState.selectedRow);
 }
 
-/* ================================================================
-   VIEW: STUDENT — RATING FORM
-================================================================ */
 function renderRating(rowIdx) {
   const s = SUBJECTS[rowIdx];
   AppState.liveScores = {};
@@ -705,7 +640,6 @@ function doSubmit(rowIdx) {
     return;
   }
 
-  // Save (Store.saveEval prevents duplicates internally)
   Store.saveEval(AppState.userId, s.classCode, {
     scores: { ...AppState.liveScores },
     comments,
@@ -716,9 +650,6 @@ function doSubmit(rowIdx) {
   renderSuccess(rowIdx);
 }
 
-/* ================================================================
-   VIEW: STUDENT — SUCCESS
-================================================================ */
 function renderSuccess(rowIdx) {
   const s = SUBJECTS[rowIdx];
   app().innerHTML = `<div class="flex flex-col min-h-screen fade-in">
@@ -744,9 +675,6 @@ function goBackToClasses() {
   renderSubjectSelect();
 }
 
-/* ================================================================
-   VIEW: STUDENT — REVIEW (read-only)
-================================================================ */
 function renderReview(classCode) {
   const s  = SUBJECTS.find(x => x.classCode === classCode);
   const ev = Store.getEval(AppState.userId, classCode);
@@ -790,14 +718,10 @@ function backFromReview() {
   _renderSubjectTable();
 }
 
-/* ================================================================
-   VIEW: STUDENT — RECEIPT
-================================================================ */
 function renderReceipt() {
   const evals = Store.getEvals(AppState.userId);
   const studentId = AppState.userId;
 
-  // Deduplicate: use SUBJECTS as source of truth, one row per subject
   const uniqueSubjects = [];
   const seenCodes = new Set();
   SUBJECTS.forEach(s => {
@@ -891,7 +815,6 @@ function saveReceiptPDF() {
     doc.setFont('helvetica','bold'); doc.setTextColor(0,48,135);
     doc.text('Screenshot your faculty evaluation process for clearance purposes.',14,y+2);
 
-    // Deduplicated rows
     const seenCodes = new Set();
     const uniqueSubjects = SUBJECTS.filter(s => { if(seenCodes.has(s.classCode)) return false; seenCodes.add(s.classCode); return true; });
     const rows = uniqueSubjects.map(s => {
@@ -914,16 +837,12 @@ function saveReceiptPDF() {
   }
 }
 
-/* ================================================================
-   VIEW: FACULTY DASHBOARD
-================================================================ */
 function renderFacultyDashboard() {
   if (AppState.role !== 'faculty') { doLogout(); return; }
   const facultyId = AppState.userId;
   const facultyName = AppState.userName || facultyId;
   const mySubjects = SUBJECTS.filter(s => s.facultyId === facultyId);
 
-  // Get anonymous comments (no scores, no student ID)
   const allEvals = Store.getAllEvalsForFaculty(facultyId);
   const commentsHTML = allEvals.length === 0
     ? `<div class="text-sm py-8 text-center" style="color:#6B7280">No evaluations submitted yet.</div>`
@@ -947,7 +866,6 @@ function renderFacultyDashboard() {
       <div class="text-xl font-bold mb-1" style="color:#1A1A2E">Faculty Dashboard</div>
       <div class="text-sm mb-6" style="color:#6B7280">Welcome, ${escHTML(facultyName)}. View your assigned subjects and anonymous student feedback below.</div>
 
-      <!-- Assigned Subjects -->
       <div class="section-bar text-sm font-bold mb-3" style="color:#003087">Assigned Subjects</div>
       <div class="rounded-xl overflow-hidden border mb-8" style="border-color:#D1D9E6">
         <table class="w-full border-collapse text-sm">
@@ -960,7 +878,6 @@ function renderFacultyDashboard() {
         </table>
       </div>
 
-      <!-- Anonymous Comments -->
       <div class="section-bar text-sm font-bold mb-3" style="color:#003087">Anonymous Student Comments <span class="ml-2 text-xs font-normal" style="color:#6B7280">(${allEvals.length} received)</span></div>
       <div class="rounded-xl p-4 mb-4" style="background:#E8F0FE;border:1.5px solid #003087">
         <div class="text-xs font-bold mb-1" style="color:#003087">📝 Privacy Notice</div>
@@ -971,9 +888,6 @@ function renderFacultyDashboard() {
   </div>`;
 }
 
-/* ================================================================
-   VIEW: ADMIN DASHBOARD
-================================================================ */
 let adminFilterFaculty = 'all';
 let adminFilterSubject = 'all';
 
@@ -984,7 +898,6 @@ function renderAdminDashboard() {
   const totalSubs  = allEvals.length;
   const completed  = Store.getCompletedStudentCount();
 
-  // Compute per-faculty averages
   const facultyStats = {};
   SUBJECTS.forEach(s => {
     if (!facultyStats[s.facultyId]) {
@@ -1026,7 +939,6 @@ function renderAdminDashboard() {
       </tr>`;
     }).join('');
 
-  // Subject stats
   const subjectStats = {};
   SUBJECTS.forEach(s => { subjectStats[s.classCode] = { ...s, scores: [], count: 0 }; });
   allEvals.forEach(ev => {
@@ -1059,7 +971,6 @@ function renderAdminDashboard() {
       <div class="text-xl font-bold mb-1" style="color:#1A1A2E">Admin Analytics Dashboard</div>
       <div class="text-sm mb-6" style="color:#6B7280">${SCHOOL_YEAR} &nbsp;•&nbsp; ${SEMESTER}</div>
 
-      <!-- KPI Cards -->
       <div class="grid grid-cols-3 gap-4 mb-8">
         <div class="rounded-2xl p-5 text-center" style="background:white;border:1.5px solid #D1D9E6">
           <div class="text-3xl font-bold" style="color:#003087">${totalSubs}</div>
@@ -1075,7 +986,6 @@ function renderAdminDashboard() {
         </div>
       </div>
 
-      <!-- Filters -->
       <div class="flex gap-4 mb-5 flex-wrap">
         <div class="flex flex-col gap-1">
           <label class="text-xs font-bold" style="color:#1A1A2E">Filter by Faculty</label>
@@ -1097,7 +1007,6 @@ function renderAdminDashboard() {
         </div>
       </div>
 
-      <!-- Faculty Performance Table -->
       <div class="section-bar text-sm font-bold mb-3" style="color:#003087">Faculty Performance Overview</div>
       <div class="rounded-xl overflow-hidden border mb-8" style="border-color:#D1D9E6">
         <table class="w-full border-collapse text-sm">
@@ -1112,7 +1021,6 @@ function renderAdminDashboard() {
         </table>
       </div>
 
-      <!-- Subject Statistics Table -->
       <div class="section-bar text-sm font-bold mb-3" style="color:#003087">Subject-Based Statistics</div>
       <div class="rounded-xl overflow-hidden border mb-8" style="border-color:#D1D9E6">
         <table class="w-full border-collapse text-sm">
@@ -1128,7 +1036,6 @@ function renderAdminDashboard() {
         </table>
       </div>
 
-      <!-- Faculty Management -->
       <div class="section-bar text-sm font-bold mb-3" style="color:#003087">Faculty Account Management</div>
       <div class="rounded-xl overflow-hidden border mb-4" style="border-color:#D1D9E6">
         <table class="w-full border-collapse text-sm">
@@ -1163,7 +1070,6 @@ function adminViewComments(facultyId) {
         </div>`;
       }).join('');
 
-  // Modal overlay
   const modal = document.createElement('div');
   modal.id = 'adminModal';
   modal.className = 'fixed inset-0 flex items-center justify-center z-50';
@@ -1205,7 +1111,6 @@ function adminExportPDF() {
     doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(30,30,30);
     doc.text(`Total Submissions: ${allEvals.length}    Generated: ${new Date().toLocaleString()}`,14,28);
 
-    // Faculty summary table
     const facStats = {};
     SUBJECTS.forEach(s => { if(!facStats[s.facultyId]) facStats[s.facultyId]={name:s.faculty,scores:[]}; });
     allEvals.forEach(ev => {
@@ -1233,17 +1138,11 @@ function adminExportPDF() {
   }
 }
 
-/* ================================================================
-   LOGOUT
-================================================================ */
 function doLogout() {
   AppState.logout();
   renderLogin();
 }
 
-/* ================================================================
-   BOOT
-================================================================ */
 seedAccounts();
 renderLogin();
 </script>
