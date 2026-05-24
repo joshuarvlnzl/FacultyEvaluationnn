@@ -502,17 +502,22 @@ function doChangePassword() {
 
 function renderSubjectSelect() {
   if (isAllEvaluated(AppState.userId)) { renderReceipt(); return; }
-  _renderSubjectTable();
+  // Pass true to enable the fade-in animation on initial load
+  _renderSubjectTable(true);
 }
 
-function _renderSubjectTable() {
+function _renderSubjectTable(isInitialLoad = false) {
   const evals = Store.getEvals(AppState.userId);
   const rows = SUBJECTS.map((s, i) => {
     const evaluated = !!evals[s.classCode];
     const statusClass = evaluated ? 'text-green-600 font-bold' : 'text-amber-600 font-bold';
     const statusTxt   = evaluated ? 'EVALUATED' : 'PENDING';
     const selected    = AppState.selectedRow === i;
-    return `<tr class="cursor-pointer transition-colors ${selected ? 'bg-blue-50' : 'hover:bg-blue-50'}" onclick="selectRow(${i})">
+    
+    // Updated Highlight: Uses a clearer blue background and makes the text slightly bolder when selected
+    const rowClass = selected ? 'bg-blue-100 font-semibold' : 'hover:bg-blue-50';
+
+    return `<tr class="cursor-pointer transition-colors ${rowClass}" onclick="selectRow(${i})">
       <td class="px-3 py-2">${s.no}</td>
       <td class="px-3 py-2">${s.classCode}</td>
       <td class="px-3 py-2">${s.subjectCode}</td>
@@ -525,7 +530,10 @@ function _renderSubjectTable() {
   const selected = AppState.selectedRow >= 0 ? SUBJECTS[AppState.selectedRow] : null;
   const btnTxt   = !selected ? 'Select a Faculty' : (evals[selected.classCode] ? 'Review Evaluation' : 'Evaluate Selected Faculty');
 
-  app().innerHTML = `<div class="flex flex-col min-h-screen fade-in">
+  // Prevent blinking on every click by conditionally applying 'fade-in'
+  const fadeClass = isInitialLoad ? 'fade-in' : '';
+
+  app().innerHTML = `<div class="flex flex-col min-h-screen ${fadeClass}">
     ${appHeader('Student: ' + AppState.userId)}
     <div class="flex-1 overflow-y-auto px-9 py-6">
       <div class="text-xl font-bold" style="color:#1A1A2E">Enrolled Subjects</div>
@@ -554,7 +562,8 @@ function _renderSubjectTable() {
 
 function selectRow(i) {
   AppState.selectedRow = i;
-  _renderSubjectTable();
+  // Pass false to update the UI without triggering the page flash animation
+  _renderSubjectTable(false);
 }
 
 function doAction() {
@@ -715,7 +724,8 @@ function renderReview(classCode) {
 
 function backFromReview() {
   AppState.selectedRow = -1;
-  _renderSubjectTable();
+  // Trigger fade animation on back navigation
+  _renderSubjectTable(true);
 }
 
 function renderReceipt() {
@@ -787,7 +797,8 @@ function renderReceipt() {
 
 function backFromReceipt() {
   AppState.selectedRow = -1;
-  _renderSubjectTable();
+  // Trigger fade animation on back navigation
+  _renderSubjectTable(true);
 }
 
 function saveReceiptPDF() {
@@ -1109,7 +1120,7 @@ function adminExportPDF() {
     doc.text(`Faculty Evaluation Summary • ${SCHOOL_YEAR} • ${SEMESTER}`,148,16,{align:'center'});
 
     doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(30,30,30);
-    doc.text(`Total Submissions: ${allEvals.length}    Generated: ${new Date().toLocaleString()}`,14,28);
+    doc.text(`Total Submissions: ${allEvals.length}   Generated: ${new Date().toLocaleString()}`,14,28);
 
     const facStats = {};
     SUBJECTS.forEach(s => { if(!facStats[s.facultyId]) facStats[s.facultyId]={name:s.faculty,scores:[]}; });
