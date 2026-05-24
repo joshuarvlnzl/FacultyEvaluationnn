@@ -1,0 +1,1251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>RTU Faculty Evaluation System</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet"/>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          primary: '#003087',
+          'primary-dark': '#001A5C',
+          accent: '#FFD700',
+          'app-bg': '#F4F7FC',
+          'input-bg': '#EFF3FA',
+          'border-c': '#D1D9E6',
+        },
+        fontFamily: {
+          sans: ['IBM Plex Sans', 'Segoe UI', 'sans-serif'],
+        },
+      }
+    }
+  }
+</script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  body { font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif; background: #F4F7FC; margin: 0; }
+  .fade-in { animation: fadeIn .22s ease; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+  ::-webkit-scrollbar { width:6px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:#D1D9E6; border-radius:3px; }
+  .role-tab { transition: all .2s; }
+  .role-tab.active { background: #003087; color: #fff; }
+  .role-tab:not(.active) { background: #EFF3FA; color: #6B7280; }
+  .rating-btn { transition: all .15s; }
+  .rating-btn.selected { background: #003087 !important; color: white !important; }
+  .rating-btn:not(.selected):hover { background: #DDEAFF; color: #003087; }
+  .section-bar { position: relative; padding-left: 14px; }
+  .section-bar::before { content:''; position:absolute; left:0; top:4px; bottom:4px; width:4px; background:#003087; border-radius:2px; }
+  @media print {
+    .no-print { display: none !important; }
+    body { background: white; }
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script type="text/javascript">
+/* ================================================================
+   TYPES (TypeScript-style interfaces as JSDoc)
+================================================================ */
+/**
+ * @typedef {'student'|'faculty'|'admin'} UserRole
+ * @typedef {{ role: UserRole, id: string, passwordHash: string, name?: string }} UserRecord
+ * @typedef {{ scores: Record<string,number>, comments: string, refNo: string, ts: number, classCode: string }} EvalRecord
+ * @typedef {{ classCode: string, subjectCode: string, description: string, facultyId: string, faculty: string }} Subject
+ * @typedef {{ title: string, criteria: string[] }} Category
+ */
+
+/* ================================================================
+   CONSTANTS / SEED DATA
+================================================================ */
+const SCHOOL_YEAR = "2025 – 2026";
+const SEMESTER    = "2nd Semester";
+const COURSE      = "Bachelor of Science in Computer Engineering / 2nd Year";
+
+/** @type {Subject[]} */
+const SUBJECTS = [
+  { no:"1",  classCode:"141218",   subjectCode:"CPE203",    description:"Numerical Methods",                                 facultyId:"FAC-1001", faculty:"REYES, ADRIAN M." },
+  { no:"2",  classCode:"141219",   subjectCode:"CPE204",    description:"Software Design",                                   facultyId:"FAC-1002", faculty:"SANTOS, CAMILLE D." },
+  { no:"3",  classCode:"141220",   subjectCode:"CPE204L",   description:"Software Design Laboratory",                       facultyId:"FAC-1002", faculty:"SANTOS, CAMILLE D." },
+  { no:"4",  classCode:"141221",   subjectCode:"ECE01",     description:"Fundamentals of Electronic Circuits",              facultyId:"FAC-1003", faculty:"NAVARRO, ETHAN J." },
+  { no:"5",  classCode:"141222",   subjectCode:"ECE01L",    description:"Fundamentals of Electronic Circuits Laboratory",   facultyId:"FAC-1003", faculty:"NAVARRO, ETHAN J." },
+  { no:"6",  classCode:"141223",   subjectCode:"CPE205",    description:"Assembly Language Programming",                    facultyId:"FAC-1004", faculty:"CRUZ, BIANCA A." },
+  { no:"7",  classCode:"1310064",  subjectCode:"GE-ELEC14", description:"Technical Communication",                         facultyId:"FAC-1005", faculty:"MENDOZA, RAFAEL P." },
+  { no:"8",  classCode:"1313032",  subjectCode:"GE03",      description:"The Contemporary World",                           facultyId:"FAC-1006", faculty:"FLORES, NICOLE T." },
+  { no:"9",  classCode:"13100072", subjectCode:"PE04",      description:"Physical Activities Towards Health & Fitness II", facultyId:"FAC-1007", faculty:"GARCIA, VINCENT L." },
+];
+
+/** @type {Category[]} */
+const CATEGORIES = [
+  { title:"I. Teaching Effectiveness", criteria:[
+    "Presents lessons clearly and understandably",
+    "Uses appropriate teaching methods and strategies",
+    "Relates lessons to real-world situations",
+    "Provides constructive feedback on student work",
+    "Encourages active participation in class"
+  ]},
+  { title:"II. Knowledge of Subject Matter", criteria:[
+    "Demonstrates mastery of the subject",
+    "Answers questions accurately and thoroughly",
+    "Updates teaching content with current developments",
+    "Explains complex concepts in a simple manner"
+  ]},
+  { title:"III. Classroom Management", criteria:[
+    "Starts and ends class on time",
+    "Maintains an orderly and conducive learning environment",
+    "Manages classroom behavior effectively",
+    "Establishes clear rules and expectations"
+  ]},
+  { title:"IV. Student Engagement & Interaction", criteria:[
+    "Encourages students to participate and ask questions",
+    "Treats all students fairly and respectfully",
+    "Is approachable and available for consultations",
+    "Provides additional support to students who need help"
+  ]},
+  { title:"V. Assessment & Feedback", criteria:[
+    "Gives fair and timely grading of outputs",
+    "Provides meaningful feedback on examinations",
+    "Aligns assessments with learning objectives",
+    "Returns graded materials promptly"
+  ]},
+];
+
+const ALL_CRITERIA = CATEGORIES.flatMap(c => c.criteria);
+
+/* ================================================================
+   SIMPLE HASH (browser-compatible, no plaintext storage)
+================================================================ */
+function simpleHash(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash |= 0;
+  }
+  return 'h' + Math.abs(hash).toString(36);
+}
+
+/* ================================================================
+   STORAGE (in-memory + localStorage)
+================================================================ */
+const _mem = {};
+const Store = {
+  get(k) {
+    try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; }
+    catch { return _mem[k] || null; }
+  },
+  set(k, v) {
+    try { localStorage.setItem(k, JSON.stringify(v)); } catch {}
+    _mem[k] = v;
+  },
+
+  // Users DB: { [id]: { role, passwordHash, name } }
+  getUsers() { return this.get('rtu_users_v2') || {}; },
+  setUsers(u) { this.set('rtu_users_v2', u); },
+
+  // Evals: keyed by studentId → { [classCode]: EvalRecord }
+  getEvals(studentId) { return this.get('rtu_evals_' + studentId) || {}; },
+  saveEval(studentId, classCode, data) {
+    const evals = this.getEvals(studentId);
+    if (!evals[classCode]) { // prevent duplicates
+      evals[classCode] = { ...data, classCode };
+      this.set('rtu_evals_' + studentId, evals);
+    }
+  },
+  getEval(studentId, classCode) { return this.getEvals(studentId)[classCode] || null; },
+
+  // Admin: get all eval records (anonymized) for a facultyId
+  getAllEvalsForFaculty(facultyId) {
+    const users = this.getUsers();
+    const results = [];
+    // Iterate all student keys in localStorage
+    const keys = [];
+    try { for (let i = 0; i < localStorage.length; i++) keys.push(localStorage.key(i)); }
+    catch { Object.keys(_mem).forEach(k => keys.push(k)); }
+    keys.filter(k => k && k.startsWith('rtu_evals_')).forEach(k => {
+      const studentId = k.replace('rtu_evals_', '');
+      const evals = this.get(k) || {};
+      Object.values(evals).forEach(ev => {
+        const subj = SUBJECTS.find(s => s.classCode === ev.classCode);
+        if (subj && subj.facultyId === facultyId) {
+          results.push({ ...ev }); // anonymous – no studentId
+        }
+      });
+    });
+    return results;
+  },
+
+  // Admin: get all evals across all students (anonymized)
+  getAllEvals() {
+    const results = [];
+    const keys = [];
+    try { for (let i = 0; i < localStorage.length; i++) keys.push(localStorage.key(i)); }
+    catch { Object.keys(_mem).forEach(k => keys.push(k)); }
+    keys.filter(k => k && k.startsWith('rtu_evals_')).forEach(k => {
+      const evals = this.get(k) || {};
+      Object.values(evals).forEach(ev => results.push({ ...ev }));
+    });
+    return results;
+  },
+
+  // Count distinct students who completed all evals
+  getCompletedStudentCount() {
+    let count = 0;
+    const keys = [];
+    try { for (let i = 0; i < localStorage.length; i++) keys.push(localStorage.key(i)); }
+    catch { Object.keys(_mem).forEach(k => keys.push(k)); }
+    keys.filter(k => k && k.startsWith('rtu_evals_')).forEach(k => {
+      const evals = this.get(k) || {};
+      if (Object.keys(evals).length >= SUBJECTS.length) count++;
+    });
+    return count;
+  },
+  getTotalSubmissions() {
+    let count = 0;
+    const keys = [];
+    try { for (let i = 0; i < localStorage.length; i++) keys.push(localStorage.key(i)); }
+    catch { Object.keys(_mem).forEach(k => keys.push(k)); }
+    keys.filter(k => k && k.startsWith('rtu_evals_')).forEach(k => {
+      const evals = this.get(k) || {};
+      count += Object.keys(evals).length;
+    });
+    return count;
+  }
+};
+
+/* ================================================================
+   SEED DEFAULT ACCOUNTS
+================================================================ */
+function seedAccounts() {
+  const users = Store.getUsers();
+  let changed = false;
+
+  // Faculty accounts
+  const facultyDefaults = [
+    { id:'FAC-1001', name:'REYES, ADRIAN M.',   pw:'faculty123' },
+    { id:'FAC-1002', name:'SANTOS, CAMILLE D.', pw:'faculty123' },
+    { id:'FAC-1003', name:'NAVARRO, ETHAN J.',  pw:'faculty123' },
+    { id:'FAC-1004', name:'CRUZ, BIANCA A.',    pw:'faculty123' },
+    { id:'FAC-1005', name:'MENDOZA, RAFAEL P.', pw:'faculty123' },
+    { id:'FAC-1006', name:'FLORES, NICOLE T.',  pw:'faculty123' },
+    { id:'FAC-1007', name:'GARCIA, VINCENT L.', pw:'faculty123' },
+    { id:'FAC-1008', name:'TORRES, SAMANTHA C.',pw:'faculty123' },
+  ];
+  facultyDefaults.forEach(f => {
+    if (!users[f.id]) {
+      users[f.id] = { role:'faculty', passwordHash: simpleHash(f.pw), name: f.name };
+      changed = true;
+    }
+  });
+
+  // Admin account
+  if (!users['admin']) {
+    users['admin'] = { role:'admin', passwordHash: simpleHash('admin123'), name:'System Administrator' };
+    changed = true;
+  }
+
+  if (changed) Store.setUsers(users);
+}
+
+/* ================================================================
+   AUTH MODULE
+================================================================ */
+const Auth = {
+  detectRole(id) {
+    id = id.trim();
+    if (/^\d{4}-\d+$/.test(id)) return 'student';
+    if (/^FAC-\d+$/i.test(id)) return 'faculty';
+    if (id.toLowerCase() === 'admin') return 'admin';
+    return null;
+  },
+
+  normalizeStudentId(id) {
+    return id.trim().toUpperCase();
+  },
+
+  login(id, password) {
+    id = id.trim();
+    const role = this.detectRole(id);
+    if (!role) return { success: false, error: 'Invalid username format.' };
+
+    if (role === 'student') {
+      const sid = this.normalizeStudentId(id);
+      const users = Store.getUsers();
+      if (users[sid]) {
+        // has custom password
+        if (users[sid].passwordHash !== simpleHash(password)) {
+          return { success: false, error: 'Invalid credentials.' };
+        }
+      } else {
+        // default: student number format + default password
+        if (!/^\d{4}-\d+$/.test(id)) return { success: false, error: 'Invalid student number.' };
+        if (password !== '123456789') return { success: false, error: 'Invalid credentials.' };
+        // create student record
+        users[sid] = { role: 'student', passwordHash: simpleHash('123456789'), name: sid };
+        Store.setUsers(users);
+      }
+      return { success: true, role: 'student', id: sid };
+    }
+
+    const users = Store.getUsers();
+    const upper = role === 'faculty' ? id.toUpperCase() : id.toLowerCase();
+    const key = role === 'faculty' ? id.toUpperCase() : 'admin';
+    const record = users[key] || users[id];
+    if (!record) return { success: false, error: 'Account not found.' };
+    if (record.passwordHash !== simpleHash(password)) return { success: false, error: 'Invalid credentials.' };
+    return { success: true, role: record.role, id: key, name: record.name };
+  },
+
+  changePassword(id, currentPw, newPw) {
+    id = id.trim();
+    const role = this.detectRole(id);
+    if (!role) return { success: false, error: 'Invalid username format.' };
+
+    const users = Store.getUsers();
+    let key = id;
+    if (role === 'student') key = this.normalizeStudentId(id);
+    if (role === 'faculty') key = id.toUpperCase();
+    if (role === 'admin') key = 'admin';
+
+    const record = users[key];
+    if (!record && role === 'student') {
+      // first time change from default
+      if (currentPw !== '123456789') return { success: false, error: 'Current password is incorrect.' };
+    } else if (!record) {
+      return { success: false, error: 'Account not found.' };
+    } else {
+      const expectedHash = record ? record.passwordHash : simpleHash('123456789');
+      if (expectedHash !== simpleHash(currentPw)) return { success: false, error: 'Current password is incorrect.' };
+    }
+
+    if (newPw === currentPw) return { success: false, error: 'New password must differ from current password.' };
+    if (newPw.length < 6) return { success: false, error: 'Password must be at least 6 characters.' };
+
+    const existing = users[key] || { role, name: key };
+    users[key] = { ...existing, passwordHash: simpleHash(newPw) };
+    Store.setUsers(users);
+    return { success: true };
+  }
+};
+
+/* ================================================================
+   APP STATE
+================================================================ */
+const AppState = {
+  /** @type {UserRole|null} */ role: null,
+  /** @type {string|null} */   userId: null,
+  /** @type {string|null} */   userName: null,
+  selectedRow: -1,
+  liveScores: {},
+
+  login(role, id, name) {
+    this.role = role;
+    this.userId = id;
+    this.userName = name || id;
+    this.selectedRow = -1;
+    this.liveScores = {};
+  },
+  logout() {
+    this.role = null;
+    this.userId = null;
+    this.userName = null;
+    this.selectedRow = -1;
+    this.liveScores = {};
+  }
+};
+
+/* ================================================================
+   HELPERS
+================================================================ */
+function app() { return document.getElementById('app'); }
+function escHTML(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function genRefNo() {
+  const d = new Date();
+  const prefix = String(d.getFullYear()).slice(2) + String(d.getMonth()+1).padStart(2,'0');
+  const suffix = Math.floor(Math.random()*900000)+100000;
+  return prefix + '-' + suffix;
+}
+
+function isAllEvaluated(studentId) {
+  const evals = Store.getEvals(studentId);
+  return SUBJECTS.every(s => evals[s.classCode]);
+}
+
+const RTU_LOGO_SVG = `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="50" cy="50" r="48" fill="none" stroke="#FFD700" stroke-width="2"/>
+  <circle cx="50" cy="50" r="40" fill="none" stroke="#FFD700" stroke-width="1"/>
+  <text x="50" y="38" text-anchor="middle" fill="#FFD700" font-size="18" font-weight="bold" font-family="serif">RTU</text>
+  <text x="50" y="54" text-anchor="middle" fill="rgba(255,255,255,0.8)" font-size="5.5" font-family="sans-serif" font-weight="600">RIZAL TECHNOLOGICAL</text>
+  <text x="50" y="62" text-anchor="middle" fill="rgba(255,255,255,0.8)" font-size="5.5" font-family="sans-serif" font-weight="600">UNIVERSITY</text>
+  <path d="M 20 70 Q 50 80 80 70" fill="none" stroke="#FFD700" stroke-width="1.5"/>
+  <text x="50" y="80" text-anchor="middle" fill="rgba(255,255,255,0.55)" font-size="4.5" font-family="sans-serif">Pandayang Rizalia</text>
+</svg>`;
+
+function logoImg(cls) {
+  return `<img src="rtu-logo.png" alt="RTU Logo" class="${cls}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
+          <span style="display:none" class="${cls} items-center justify-center">${RTU_LOGO_SVG}</span>`;
+}
+
+/* ================================================================
+   SHARED UI COMPONENTS
+================================================================ */
+function brandingPanel() {
+  return `<div class="w-96 min-w-72 flex-shrink-0 flex items-start justify-center p-12 overflow-y-auto" style="background:linear-gradient(145deg,#003087 0%,#001A5C 100%)">
+    <div class="flex flex-col items-center my-auto gap-0 w-full">
+      <div class="w-28 h-28 rounded-full flex items-center justify-center overflow-hidden mb-4" style="background:rgba(255,255,255,0.1);border:2px solid rgba(255,255,255,0.25)">
+        ${logoImg('w-full h-full object-contain')}
+      </div>
+      <div class="text-accent font-bold text-sm text-center tracking-wide leading-snug" style="color:#FFD700">RIZAL TECHNOLOGICAL<br>UNIVERSITY</div>
+      <div class="text-xs text-center mt-1" style="color:rgba(255,255,255,0.75)">Faculty Evaluation System</div>
+      <div class="w-48 h-px my-4" style="background:rgba(255,255,255,0.18)"></div>
+      <div class="text-xs text-center italic leading-relaxed" style="color:rgba(255,255,255,0.6)">"Pandayang Rizalia"<br>Empower excellence through<br>meaningful evaluation</div>
+      <div class="w-full mt-3 text-left">
+        <div class="text-xs font-bold tracking-widest uppercase mt-2 mb-1" style="color:#FFD700;font-size:10px">Mission</div>
+        <div class="leading-snug" style="color:rgba(255,255,255,0.55);font-size:10px">To produce competent and socially responsible professionals through innovative instructions, high-impact research, and sustainable extension services responsive to the diverse needs of glocal communities.</div>
+        <div class="text-xs font-bold tracking-widest uppercase mt-2 mb-1" style="color:#FFD700;font-size:10px">Vision</div>
+        <div class="leading-snug" style="color:rgba(255,255,255,0.55);font-size:10px">A smart and transnational university.</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function appHeader(subtitle) {
+  const display = AppState.userName || AppState.userId || '';
+  return `<div class="flex items-center justify-between px-6 flex-shrink-0 no-print" style="background:linear-gradient(90deg,#003087 0%,#001A5C 100%);height:72px">
+    <div class="flex items-center gap-3">
+      <div class="w-12 h-12 rounded-full flex items-center justify-center overflow-hidden" style="background:rgba(255,255,255,0.12)">
+        ${logoImg('w-full h-full object-contain')}
+      </div>
+      <div>
+        <div class="text-white font-bold text-base leading-tight">Faculty Evaluation System</div>
+        <div class="text-xs" style="color:rgba(255,255,255,0.7)">Rizal Technological University &nbsp;•&nbsp; ${escHTML(subtitle || display)}</div>
+      </div>
+    </div>
+    <button onclick="doLogout()" class="font-bold text-xs px-4 py-2 rounded-lg cursor-pointer transition-all hover:opacity-90" style="background:#FFD700;color:#003087">Logout</button>
+  </div>`;
+}
+
+/* ================================================================
+   VIEW: LOGIN
+================================================================ */
+function renderLogin(errMsg='') {
+  app().innerHTML = `<div class="flex min-h-screen fade-in">
+    ${brandingPanel()}
+    <div class="flex-1 flex items-start justify-center overflow-y-auto" style="background:#F4F7FC;padding:60px 52px 48px">
+      <div class="w-full max-w-sm">
+        <div class="text-2xl font-bold text-center" style="color:#1A1A2E">Welcome Back Rizalianos</div>
+        <div class="text-sm text-center mt-1" style="color:#6B7280">Sign in to your RTU account</div>
+
+        <div class="flex flex-col gap-3 mt-7">
+          <div class="flex flex-col gap-1">
+            <label class="text-xs font-bold" style="color:#1A1A2E">Username</label>
+            <input id="loginId" type="text" placeholder="Student No., Faculty ID, or Admin username"
+              class="rounded-lg px-3 py-2 text-sm outline-none transition-all"
+              style="background:#EFF3FA;border:1.5px solid #D1D9E6;color:#1A1A2E"
+              onfocus="this.style.borderColor='#003087'" onblur="this.style.borderColor='#D1D9E6'"/>
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs font-bold" style="color:#1A1A2E">Password</label>
+            <input id="loginPw" type="password" placeholder="Enter your password"
+              class="rounded-lg px-3 py-2 text-sm outline-none transition-all"
+              style="background:#EFF3FA;border:1.5px solid #D1D9E6;color:#1A1A2E"
+              onfocus="this.style.borderColor='#003087'" onblur="this.style.borderColor='#D1D9E6'"/>
+          </div>
+          <div class="text-xs text-red-600 text-center min-h-4">${errMsg}</div>
+          <button onclick="doLogin()" class="w-full py-3 rounded-xl text-sm font-bold text-white cursor-pointer transition-all hover:opacity-90 mt-1" style="background:#003087">Sign In</button>
+        </div>
+
+        <hr class="my-5" style="border-color:#D1D9E6"/>
+        <div class="flex items-center justify-center gap-2">
+          <span class="text-sm" style="color:#6B7280">Forgot Password?</span>
+          <button onclick="renderForgotPassword()" class="text-sm font-bold cursor-pointer" style="background:none;border:none;color:#003087">Reset Here</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+
+  const idEl = document.getElementById('loginId');
+  const pwEl = document.getElementById('loginPw');
+  if (idEl) idEl.addEventListener('keydown', e => { if(e.key==='Enter') pwEl.focus(); });
+  if (pwEl) pwEl.addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+  if (idEl) idEl.focus();
+}
+
+function doLogin() {
+  const id = (document.getElementById('loginId')||{}).value || '';
+  const pw = (document.getElementById('loginPw')||{}).value || '';
+  if (!id.trim() || !pw) { renderLogin('Please enter all required fields.'); return; }
+
+  const result = Auth.login(id, pw);
+  if (!result.success) { renderLogin(result.error); return; }
+
+  AppState.login(result.role, result.id, result.name);
+
+  if (result.role === 'student') {
+    if (isAllEvaluated(result.id)) renderReceipt();
+    else renderSubjectSelect();
+  } else if (result.role === 'faculty') {
+    renderFacultyDashboard();
+  } else {
+    renderAdminDashboard();
+  }
+}
+
+/* ================================================================
+   VIEW: FORGOT PASSWORD
+================================================================ */
+function renderForgotPassword(errMsg='', okMsg='') {
+  app().innerHTML = `<div class="flex min-h-screen fade-in">
+    ${brandingPanel()}
+    <div class="flex-1 flex items-start justify-center overflow-y-auto" style="background:#F4F7FC;padding:60px 52px 48px">
+      <div class="w-full max-w-sm">
+        <div class="text-2xl font-bold text-center" style="color:#1A1A2E">Change Password</div>
+        <div class="text-sm text-center mt-1 mb-6" style="color:#6B7280">Enter your credentials to reset your password</div>
+
+        <div class="flex flex-col gap-3">
+          <div class="flex flex-col gap-1">
+            <label class="text-xs font-bold" style="color:#1A1A2E">Username / Student Number / Faculty ID</label>
+            <input id="fpId" type="text" placeholder="e.g. 2024-12345 / FAC-1001 / admin" class="rounded-lg px-3 py-2 text-sm outline-none" style="background:#EFF3FA;border:1.5px solid #D1D9E6;color:#1A1A2E"/>
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs font-bold" style="color:#1A1A2E">Current Password</label>
+            <input id="fpCurrent" type="password" placeholder="Current password" class="rounded-lg px-3 py-2 text-sm outline-none" style="background:#EFF3FA;border:1.5px solid #D1D9E6;color:#1A1A2E"/>
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs font-bold" style="color:#1A1A2E">New Password</label>
+            <input id="fpNew" type="password" placeholder="New password (min. 6 characters)" class="rounded-lg px-3 py-2 text-sm outline-none" style="background:#EFF3FA;border:1.5px solid #D1D9E6;color:#1A1A2E"/>
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs font-bold" style="color:#1A1A2E">Confirm New Password</label>
+            <input id="fpConfirm" type="password" placeholder="Confirm new password" class="rounded-lg px-3 py-2 text-sm outline-none" style="background:#EFF3FA;border:1.5px solid #D1D9E6;color:#1A1A2E"/>
+          </div>
+
+          ${errMsg ? `<div class="text-xs text-red-600 text-center min-h-4">${escHTML(errMsg)}</div>` : ''}
+          ${okMsg  ? `<div class="text-xs text-green-600 text-center min-h-4 font-bold">${escHTML(okMsg)}</div>` : ''}
+
+          <button onclick="doChangePassword()" class="w-full py-3 rounded-xl text-sm font-bold text-white cursor-pointer mt-1" style="background:#003087">Update Password</button>
+          <button onclick="renderLogin()" class="w-full py-2 text-sm font-bold cursor-pointer" style="background:none;border:none;color:#6B7280">← Back to Login</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+  document.getElementById('fpId').focus();
+}
+
+function doChangePassword() {
+  const id      = document.getElementById('fpId').value.trim();
+  const current = document.getElementById('fpCurrent').value;
+  const nw      = document.getElementById('fpNew').value;
+  const confirm = document.getElementById('fpConfirm').value;
+
+  if (!id || !current || !nw || !confirm) { renderForgotPassword('All fields are required.'); return; }
+  if (nw !== confirm) { renderForgotPassword('New passwords do not match.'); return; }
+  if (nw.length < 6) { renderForgotPassword('New password must be at least 6 characters.'); return; }
+
+  const result = Auth.changePassword(id, current, nw);
+  if (!result.success) { renderForgotPassword(result.error); return; }
+
+  renderForgotPassword('', 'Password updated successfully! Redirecting to login…');
+  setTimeout(() => renderLogin(), 1800);
+}
+
+/* ================================================================
+   VIEW: STUDENT — SUBJECT SELECTION
+================================================================ */
+function renderSubjectSelect() {
+  if (isAllEvaluated(AppState.userId)) { renderReceipt(); return; }
+  _renderSubjectTable();
+}
+
+function _renderSubjectTable() {
+  const evals = Store.getEvals(AppState.userId);
+  const rows = SUBJECTS.map((s, i) => {
+    const evaluated = !!evals[s.classCode];
+    const statusClass = evaluated ? 'text-green-600 font-bold' : 'text-amber-600 font-bold';
+    const statusTxt   = evaluated ? 'EVALUATED' : 'PENDING';
+    const selected    = AppState.selectedRow === i;
+    return `<tr class="cursor-pointer transition-colors ${selected ? 'bg-blue-50' : 'hover:bg-blue-50'}" onclick="selectRow(${i})">
+      <td class="px-3 py-2">${s.no}</td>
+      <td class="px-3 py-2">${s.classCode}</td>
+      <td class="px-3 py-2">${s.subjectCode}</td>
+      <td class="px-3 py-2">${s.description}</td>
+      <td class="px-3 py-2">${s.faculty}</td>
+      <td class="px-3 py-2 ${statusClass}">${statusTxt}</td>
+    </tr>`;
+  }).join('');
+
+  const selected = AppState.selectedRow >= 0 ? SUBJECTS[AppState.selectedRow] : null;
+  const btnTxt   = !selected ? 'Select a Faculty' : (evals[selected.classCode] ? 'Review Evaluation' : 'Evaluate Selected Faculty');
+
+  app().innerHTML = `<div class="flex flex-col min-h-screen fade-in">
+    ${appHeader('Student: ' + AppState.userId)}
+    <div class="flex-1 overflow-y-auto px-9 py-6">
+      <div class="text-xl font-bold" style="color:#1A1A2E">Enrolled Subjects</div>
+      <div class="text-sm mt-1" style="color:#6B7280">Select a faculty member below to begin or review their evaluation.</div>
+      <div class="mt-5 rounded-xl overflow-hidden border" style="border-color:#D1D9E6">
+        <table class="w-full border-collapse text-sm">
+          <thead>
+            <tr style="background:#003087">
+              <th class="text-white font-bold text-xs px-3 py-2 text-left" style="width:44px">No.</th>
+              <th class="text-white font-bold text-xs px-3 py-2 text-left" style="width:100px">Class Code</th>
+              <th class="text-white font-bold text-xs px-3 py-2 text-left" style="width:100px">Subject</th>
+              <th class="text-white font-bold text-xs px-3 py-2 text-left">Description</th>
+              <th class="text-white font-bold text-xs px-3 py-2 text-left" style="width:200px">Faculty</th>
+              <th class="text-white font-bold text-xs px-3 py-2 text-left" style="width:100px">Status</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div class="flex justify-center mt-4">
+        <button id="actionBtn" onclick="doAction()" ${!selected?'disabled':''} class="px-9 py-3 rounded-xl text-sm font-bold text-white transition-all cursor-pointer" style="background:${selected?'#003087':'#D1D9E6'};color:${selected?'white':'#A0AEC0'}">${btnTxt}</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function selectRow(i) {
+  AppState.selectedRow = i;
+  _renderSubjectTable();
+}
+
+function doAction() {
+  if (AppState.selectedRow < 0) return;
+  const s = SUBJECTS[AppState.selectedRow];
+  const ev = Store.getEval(AppState.userId, s.classCode);
+  if (ev) renderReview(s.classCode);
+  else renderRating(AppState.selectedRow);
+}
+
+/* ================================================================
+   VIEW: STUDENT — RATING FORM
+================================================================ */
+function renderRating(rowIdx) {
+  const s = SUBJECTS[rowIdx];
+  AppState.liveScores = {};
+
+  const catHTML = CATEGORIES.map(cat => {
+    const cRows = cat.criteria.map(criterion => {
+      const safeId = 'btns_' + criterion.replace(/[^a-zA-Z0-9]/g,'_');
+      return `<div class="flex items-center justify-between rounded-xl px-4 py-2 mb-1" style="background:white;border:1.5px solid #D1D9E6;gap:12px">
+        <span class="text-sm flex-1" style="color:#1A1A2E">${escHTML(criterion)}</span>
+        <div class="flex gap-1 flex-shrink-0" id="${safeId}">
+          ${[1,2,3,4,5].map(n=>`<button class="rating-btn w-9 h-8 rounded-lg text-sm font-bold cursor-pointer" style="background:#EFF3FA;color:#6B7280"
+            data-criterion="${escHTML(criterion)}" data-score="${n}"
+            onclick="setScore(this,'${criterion.replace(/'/g,"\\'")}',${n})">${n}</button>`).join('')}
+        </div>
+      </div>`;
+    }).join('');
+    return `<div class="section-bar text-sm font-bold mb-2 mt-1" style="color:#003087">${escHTML(cat.title)}</div>
+      <div class="flex justify-between px-4 text-xs font-bold mb-1" style="color:#6B7280"><span>Criterion</span><span>1 (Poor) → 5 (Excellent)</span></div>
+      ${cRows}<div class="mb-5"></div>`;
+  }).join('');
+
+  app().innerHTML = `<div class="flex flex-col min-h-screen fade-in">
+    ${appHeader('Evaluating Faculty')}
+    <div class="flex-1 overflow-y-auto px-9 py-6">
+      <div class="rounded-xl p-4 mb-6" style="background:white;border:1.5px solid #D1D9E6">
+        <div class="text-xs font-bold mb-3" style="color:#003087">Evaluating Faculty Member</div>
+        <div class="grid grid-cols-2 gap-3 text-sm">
+          <div><span class="font-bold" style="color:#6B7280">Faculty: </span><span class="font-bold" style="color:#1A1A2E">${escHTML(s.faculty)}</span></div>
+          <div><span class="font-bold" style="color:#6B7280">Subject: </span><span class="font-bold" style="color:#1A1A2E">${escHTML(s.subjectCode)}</span></div>
+          <div><span class="font-bold" style="color:#6B7280">Class Code: </span><span class="font-bold" style="color:#1A1A2E">${escHTML(s.classCode)}</span></div>
+          <div><span class="font-bold" style="color:#6B7280">Description: </span><span class="font-bold" style="color:#1A1A2E">${escHTML(s.description)}</span></div>
+        </div>
+      </div>
+
+      ${catHTML}
+
+      <div class="section-bar text-sm font-bold mb-2 mt-1" style="color:#003087">Additional Comments &amp; Suggestions <span class="text-red-500">*</span></div>
+      <textarea id="evalComments" class="w-full rounded-xl px-3 py-2 text-sm outline-none resize-y min-h-20" style="background:#EFF3FA;border:1.5px solid #D1D9E6;font-family:inherit" placeholder="Required: share your comments or suggestions about this faculty member..." onfocus="this.style.borderColor='#003087'" onblur="this.style.borderColor='#D1D9E6'"></textarea>
+
+      <div class="text-xs text-red-600 text-center min-h-4 mt-2" id="evalErr"></div>
+      <div class="flex justify-center gap-4 mt-3">
+        <button onclick="renderSubjectSelect()" class="px-6 py-3 font-bold text-sm cursor-pointer" style="background:none;border:none;color:#6B7280">Cancel</button>
+        <button onclick="doSubmit(${rowIdx})" class="px-9 py-3 rounded-xl text-sm font-bold text-white cursor-pointer" style="background:#003087">Submit Evaluation</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function setScore(btn, criterion, score) {
+  AppState.liveScores[criterion] = score;
+  const container = btn.closest('.flex.gap-1');
+  container.querySelectorAll('.rating-btn').forEach(b => {
+    b.classList.remove('selected');
+    b.style.background = '#EFF3FA';
+    b.style.color = '#6B7280';
+  });
+  btn.classList.add('selected');
+  btn.style.background = '#003087';
+  btn.style.color = 'white';
+}
+
+function doSubmit(rowIdx) {
+  const s = SUBJECTS[rowIdx];
+  const unrated = ALL_CRITERIA.filter(c => !AppState.liveScores[c]);
+  if (unrated.length > 0) {
+    document.getElementById('evalErr').textContent = `${unrated.length} criterion(a) not yet rated. Please rate all items.`;
+    return;
+  }
+  const comments = (document.getElementById('evalComments').value||'').trim();
+  if (!comments) {
+    document.getElementById('evalErr').textContent = 'Comments & Suggestions are required. Please provide your feedback.';
+    document.getElementById('evalComments').style.borderColor = '#DC2626';
+    return;
+  }
+
+  // Save (Store.saveEval prevents duplicates internally)
+  Store.saveEval(AppState.userId, s.classCode, {
+    scores: { ...AppState.liveScores },
+    comments,
+    refNo: genRefNo(),
+    ts: Date.now()
+  });
+  AppState.liveScores = {};
+  renderSuccess(rowIdx);
+}
+
+/* ================================================================
+   VIEW: STUDENT — SUCCESS
+================================================================ */
+function renderSuccess(rowIdx) {
+  const s = SUBJECTS[rowIdx];
+  app().innerHTML = `<div class="flex flex-col min-h-screen fade-in">
+    ${appHeader('Evaluation Submitted')}
+    <div class="flex-1 flex items-center justify-center p-10">
+      <div class="text-center rounded-2xl p-12 max-w-md w-full" style="background:white;border:1.5px solid #D1D9E6">
+        <div class="text-5xl mb-4" style="color:#16A34A">✔</div>
+        <div class="text-2xl font-bold" style="color:#1A1A2E">Evaluation Submitted!</div>
+        <div class="text-sm mt-4 leading-relaxed" style="color:#6B7280">
+          <strong style="color:#1A1A2E">${escHTML(s.faculty)}</strong><br>
+          ${escHTML(s.subjectCode)} — ${escHTML(s.description)}<br>
+          Class Code: ${escHTML(s.classCode)}
+        </div>
+        <div class="text-sm font-bold mt-3" style="color:#16A34A">Your evaluation has been successfully recorded.</div>
+        <button onclick="goBackToClasses()" class="mt-8 px-9 py-3 rounded-xl text-sm font-bold text-white cursor-pointer" style="background:#003087">Back to Classes</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function goBackToClasses() {
+  AppState.selectedRow = -1;
+  renderSubjectSelect();
+}
+
+/* ================================================================
+   VIEW: STUDENT — REVIEW (read-only)
+================================================================ */
+function renderReview(classCode) {
+  const s  = SUBJECTS.find(x => x.classCode === classCode);
+  const ev = Store.getEval(AppState.userId, classCode);
+  const avg = (ALL_CRITERIA.reduce((sum,c) => sum + (ev.scores[c]||0), 0) / ALL_CRITERIA.length).toFixed(1);
+
+  const catHTML = CATEGORIES.map(cat => {
+    const cRows = cat.criteria.map(c => `<div class="flex items-center justify-between rounded-xl px-4 py-2 mb-1" style="background:#F9FAFB;border:1.5px solid #D1D9E6">
+      <span class="text-sm flex-1" style="color:#1A1A2E">${escHTML(c)}</span>
+      <span class="text-base font-bold min-w-12 text-center" style="color:#003087">${ev.scores[c]||0} / 5</span>
+    </div>`).join('');
+    return `<div class="section-bar text-sm font-bold mb-2 mt-1" style="color:#003087">${escHTML(cat.title)}</div>${cRows}<div class="mb-5"></div>`;
+  }).join('');
+
+  app().innerHTML = `<div class="flex flex-col min-h-screen fade-in">
+    ${appHeader('Reviewing Evaluation')}
+    <div class="flex-1 overflow-y-auto px-9 py-6">
+      <div class="rounded-xl p-4 mb-6" style="background:#E8F0FE;border:1.5px solid #003087">
+        <div class="flex justify-between items-center mb-3">
+          <span class="text-sm font-bold" style="color:#003087">Submitted Evaluation</span>
+          <span class="text-sm font-bold" style="color:#003087">Average: ${avg} / 5.0</span>
+        </div>
+        <div class="grid grid-cols-2 gap-3 text-sm">
+          <div><span class="font-bold" style="color:#6B7280">Faculty: </span><span class="font-bold" style="color:#1A1A2E">${escHTML(s.faculty)}</span></div>
+          <div><span class="font-bold" style="color:#6B7280">Subject: </span><span class="font-bold" style="color:#1A1A2E">${escHTML(s.subjectCode)}</span></div>
+          <div><span class="font-bold" style="color:#6B7280">Class Code: </span><span class="font-bold" style="color:#1A1A2E">${escHTML(s.classCode)}</span></div>
+          <div><span class="font-bold" style="color:#6B7280">Description: </span><span class="font-bold" style="color:#1A1A2E">${escHTML(s.description)}</span></div>
+        </div>
+      </div>
+      ${catHTML}
+      <div class="section-bar text-sm font-bold mb-2" style="color:#003087">Submitted Comments</div>
+      <textarea readonly class="w-full rounded-xl px-3 py-2 text-sm resize-none min-h-20" style="background:#F9FAFB;border:1.5px solid #D1D9E6;font-family:inherit;color:#1A1A2E">${escHTML(ev.comments || 'No comments provided.')}</textarea>
+      <div class="flex justify-center mt-6">
+        <button onclick="backFromReview()" class="px-9 py-3 rounded-xl text-sm font-bold text-white cursor-pointer" style="background:#003087">← Back to Classes</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function backFromReview() {
+  AppState.selectedRow = -1;
+  _renderSubjectTable();
+}
+
+/* ================================================================
+   VIEW: STUDENT — RECEIPT
+================================================================ */
+function renderReceipt() {
+  const evals = Store.getEvals(AppState.userId);
+  const studentId = AppState.userId;
+
+  // Deduplicate: use SUBJECTS as source of truth, one row per subject
+  const uniqueSubjects = [];
+  const seenCodes = new Set();
+  SUBJECTS.forEach(s => {
+    if (!seenCodes.has(s.classCode)) {
+      seenCodes.add(s.classCode);
+      uniqueSubjects.push(s);
+    }
+  });
+
+  const rows = uniqueSubjects.map(s => {
+    const ev = evals[s.classCode];
+    return `<tr>
+      <td class="px-3 py-2">${s.no}</td>
+      <td class="px-3 py-2">${s.classCode}</td>
+      <td class="px-3 py-2">${s.subjectCode}</td>
+      <td class="px-3 py-2">${s.description}</td>
+      <td class="px-3 py-2">${s.faculty}</td>
+      <td class="px-3 py-2 font-bold" style="color:#003087">EVALUATED</td>
+      <td class="px-3 py-2 text-xs" style="color:#003087">${ev ? ev.refNo : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  app().innerHTML = `<div class="flex flex-col min-h-screen fade-in">
+    ${appHeader('Evaluation Receipt')}
+    <div class="flex-1 overflow-y-auto px-9 py-6" id="receiptBody">
+      <div class="mb-6 text-sm">
+        <div class="flex mb-1"><span class="w-48" style="color:#1A1A2E">Current School Year:</span><span class="font-bold" style="color:#003087">${SCHOOL_YEAR}</span></div>
+        <div class="flex mb-1"><span class="w-48" style="color:#1A1A2E">Current Semester:</span><span class="font-bold" style="color:#003087">${SEMESTER}</span></div>
+        <div class="flex mb-1"><span class="w-48" style="color:#1A1A2E">Student Name:</span><span style="color:#1A1A2E">${escHTML(studentId)}</span></div>
+        <div class="flex mb-1"><span class="w-48" style="color:#1A1A2E">Course / Year Level:</span><span style="color:#1A1A2E">${COURSE}</span></div>
+        <div class="flex mb-1"><span class="w-48" style="color:#1A1A2E">Evaluation Schedule:</span><span style="color:#1A1A2E">No Schedule of Evaluation</span></div>
+        <div class="font-bold mt-2" style="color:#003087">Screenshot your faculty evaluation process for clearance purposes</div>
+      </div>
+
+      <div class="flex items-center gap-2 text-sm font-bold mb-3" style="color:#003087">
+        <span style="font-size:10px">●</span> Schedule Details
+      </div>
+      <div class="rounded-xl overflow-hidden border mb-6" style="border-color:#D1D9E6">
+        <table class="w-full border-collapse text-sm">
+          <thead>
+            <tr style="background:#4a4a4a">
+              <th class="text-white text-xs font-bold px-3 py-2 text-left" style="width:40px">NO.</th>
+              <th class="text-white text-xs font-bold px-3 py-2 text-left" style="width:100px">CLASS CODE</th>
+              <th class="text-white text-xs font-bold px-3 py-2 text-left" style="width:100px">SUBJECT</th>
+              <th class="text-white text-xs font-bold px-3 py-2 text-left">SUBJECT DESCRIPTION</th>
+              <th class="text-white text-xs font-bold px-3 py-2 text-left" style="width:200px">FACULTY</th>
+              <th class="text-white text-xs font-bold px-3 py-2 text-left" style="width:90px">STATUS</th>
+              <th class="text-white text-xs font-bold px-3 py-2 text-left" style="width:160px">REF. NO.</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+
+      <div class="flex justify-center gap-3 no-print">
+        <button onclick="saveReceiptPDF()" class="px-8 py-3 rounded-xl text-sm font-bold text-white cursor-pointer" style="background:#003087">💾 Save Receipt (PDF)</button>
+        <button onclick="window.print()" class="px-8 py-3 rounded-xl text-sm font-bold cursor-pointer" style="background:none;border:2px solid #003087;color:#003087">🖨 Print Receipt</button>
+        <button onclick="backFromReceipt()" class="px-8 py-3 rounded-xl text-sm font-bold cursor-pointer" style="background:none;border:2px solid #003087;color:#003087">← Review Evaluations</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function backFromReceipt() {
+  AppState.selectedRow = -1;
+  _renderSubjectTable();
+}
+
+function saveReceiptPDF() {
+  const evals = Store.getEvals(AppState.userId);
+  const studentId = AppState.userId;
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
+    doc.setFillColor(0,48,135); doc.rect(0,0,297,22,'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(255,215,0);
+    doc.text('RIZAL TECHNOLOGICAL UNIVERSITY',148,9,{align:'center'});
+    doc.setFontSize(9); doc.setTextColor(255,255,255);
+    doc.text('Faculty Evaluation System — Evaluation Receipt',148,16,{align:'center'});
+    doc.setTextColor(30,30,30); doc.setFont('helvetica','normal'); doc.setFontSize(9);
+    let y = 30;
+    const info = [
+      ['Current School Year:', SCHOOL_YEAR], ['Current Semester:', SEMESTER],
+      ['Student:', studentId], ['Course / Year Level:', COURSE],
+      ['Evaluation Schedule:', 'No Schedule of Evaluation'],
+    ];
+    info.forEach(([lbl,val]) => {
+      doc.setFont('helvetica','bold'); doc.text(lbl,14,y);
+      doc.setFont('helvetica','normal'); doc.text(val,70,y); y += 6;
+    });
+    doc.setFont('helvetica','bold'); doc.setTextColor(0,48,135);
+    doc.text('Screenshot your faculty evaluation process for clearance purposes.',14,y+2);
+
+    // Deduplicated rows
+    const seenCodes = new Set();
+    const uniqueSubjects = SUBJECTS.filter(s => { if(seenCodes.has(s.classCode)) return false; seenCodes.add(s.classCode); return true; });
+    const rows = uniqueSubjects.map(s => {
+      const ev = evals[s.classCode];
+      return [s.no, s.classCode, s.subjectCode, s.description, s.faculty, 'EVALUATED', ev?ev.refNo:'—'];
+    });
+    doc.autoTable({
+      head:[['No.','Class Code','Subject','Subject Description','Faculty','Status','Ref. No.']],
+      body: rows, startY: y+10,
+      styles:{ fontSize:8, cellPadding:2 },
+      headStyles:{ fillColor:[74,74,74], textColor:[255,255,255], fontStyle:'bold' },
+      alternateRowStyles:{ fillColor:[249,250,251] },
+      columnStyles:{ 0:{cellWidth:12},1:{cellWidth:22},2:{cellWidth:22},3:{cellWidth:65},4:{cellWidth:48},5:{cellWidth:22},6:{cellWidth:35} }
+    });
+    doc.setFont('helvetica','italic'); doc.setTextColor(100); doc.setFontSize(7);
+    doc.text(`Generated on ${new Date().toLocaleString()}`,14,doc.internal.pageSize.height-6);
+    doc.save(`RTU_Evaluation_Receipt_${studentId}.pdf`);
+  } catch(err) {
+    alert('PDF library not loaded. Use Print to save as PDF instead.\n\n'+err.message);
+  }
+}
+
+/* ================================================================
+   VIEW: FACULTY DASHBOARD
+================================================================ */
+function renderFacultyDashboard() {
+  if (AppState.role !== 'faculty') { doLogout(); return; }
+  const facultyId = AppState.userId;
+  const facultyName = AppState.userName || facultyId;
+  const mySubjects = SUBJECTS.filter(s => s.facultyId === facultyId);
+
+  // Get anonymous comments (no scores, no student ID)
+  const allEvals = Store.getAllEvalsForFaculty(facultyId);
+  const commentsHTML = allEvals.length === 0
+    ? `<div class="text-sm py-8 text-center" style="color:#6B7280">No evaluations submitted yet.</div>`
+    : allEvals.map((ev, idx) => {
+        const subj = SUBJECTS.find(s => s.classCode === ev.classCode);
+        return `<div class="rounded-xl px-4 py-3 mb-3" style="background:#F9FAFB;border:1.5px solid #D1D9E6">
+          <div class="text-xs font-bold mb-1" style="color:#003087">${subj ? escHTML(subj.subjectCode + ' — ' + subj.description) : 'Unknown Subject'}</div>
+          <div class="text-sm leading-relaxed" style="color:#1A1A2E">${escHTML(ev.comments || '(No comment)')}</div>
+        </div>`;
+      }).join('');
+
+  const subjRows = mySubjects.map(s => `<tr>
+    <td class="px-3 py-2">${s.classCode}</td>
+    <td class="px-3 py-2">${s.subjectCode}</td>
+    <td class="px-3 py-2">${s.description}</td>
+  </tr>`).join('');
+
+  app().innerHTML = `<div class="flex flex-col min-h-screen fade-in">
+    ${appHeader('Faculty: ' + facultyName)}
+    <div class="flex-1 overflow-y-auto px-9 py-6">
+      <div class="text-xl font-bold mb-1" style="color:#1A1A2E">Faculty Dashboard</div>
+      <div class="text-sm mb-6" style="color:#6B7280">Welcome, ${escHTML(facultyName)}. View your assigned subjects and anonymous student feedback below.</div>
+
+      <!-- Assigned Subjects -->
+      <div class="section-bar text-sm font-bold mb-3" style="color:#003087">Assigned Subjects</div>
+      <div class="rounded-xl overflow-hidden border mb-8" style="border-color:#D1D9E6">
+        <table class="w-full border-collapse text-sm">
+          <thead><tr style="background:#003087">
+            <th class="text-white text-xs font-bold px-3 py-2 text-left">Class Code</th>
+            <th class="text-white text-xs font-bold px-3 py-2 text-left">Subject Code</th>
+            <th class="text-white text-xs font-bold px-3 py-2 text-left">Description</th>
+          </tr></thead>
+          <tbody>${subjRows || '<tr><td colspan="3" class="px-3 py-4 text-center text-sm" style="color:#6B7280">No subjects assigned.</td></tr>'}</tbody>
+        </table>
+      </div>
+
+      <!-- Anonymous Comments -->
+      <div class="section-bar text-sm font-bold mb-3" style="color:#003087">Anonymous Student Comments <span class="ml-2 text-xs font-normal" style="color:#6B7280">(${allEvals.length} received)</span></div>
+      <div class="rounded-xl p-4 mb-4" style="background:#E8F0FE;border:1.5px solid #003087">
+        <div class="text-xs font-bold mb-1" style="color:#003087">📝 Privacy Notice</div>
+        <div class="text-xs" style="color:#6B7280">All feedback below is completely anonymous. Student identities are never disclosed in this system.</div>
+      </div>
+      ${commentsHTML}
+    </div>
+  </div>`;
+}
+
+/* ================================================================
+   VIEW: ADMIN DASHBOARD
+================================================================ */
+let adminFilterFaculty = 'all';
+let adminFilterSubject = 'all';
+
+function renderAdminDashboard() {
+  if (AppState.role !== 'admin') { doLogout(); return; }
+
+  const allEvals   = Store.getAllEvals();
+  const totalSubs  = allEvals.length;
+  const completed  = Store.getCompletedStudentCount();
+
+  // Compute per-faculty averages
+  const facultyStats = {};
+  SUBJECTS.forEach(s => {
+    if (!facultyStats[s.facultyId]) {
+      facultyStats[s.facultyId] = { name: s.faculty, scores: [], comments: [], evalCount: 0 };
+    }
+  });
+  allEvals.forEach(ev => {
+    const subj = SUBJECTS.find(s => s.classCode === ev.classCode);
+    if (!subj) return;
+    const stats = facultyStats[subj.facultyId];
+    if (!stats) return;
+    const avg = ALL_CRITERIA.reduce((s,c) => s+(ev.scores[c]||0), 0) / ALL_CRITERIA.length;
+    stats.scores.push(avg);
+    if (ev.comments) stats.comments.push({ comment: ev.comments, subject: subj.description });
+    stats.evalCount++;
+  });
+
+  const facultyRows = Object.entries(facultyStats)
+    .filter(([id]) => adminFilterFaculty === 'all' || id === adminFilterFaculty)
+    .map(([id, stats]) => {
+      const avg = stats.scores.length ? (stats.scores.reduce((a,b)=>a+b,0)/stats.scores.length).toFixed(2) : 'N/A';
+      const bar = stats.scores.length ? Math.round((parseFloat(avg)/5)*100) : 0;
+      const color = parseFloat(avg) >= 4 ? '#16A34A' : parseFloat(avg) >= 3 ? '#D97706' : '#DC2626';
+      return `<tr>
+        <td class="px-3 py-2 font-bold" style="color:#1A1A2E">${escHTML(stats.name)}</td>
+        <td class="px-3 py-2">${id}</td>
+        <td class="px-3 py-2">${stats.evalCount}</td>
+        <td class="px-3 py-2">
+          <div class="flex items-center gap-2">
+            <div class="flex-1 h-2 rounded-full" style="background:#EFF3FA">
+              <div class="h-2 rounded-full" style="background:${color};width:${bar}%"></div>
+            </div>
+            <span class="font-bold text-sm" style="color:${color}">${avg}</span>
+          </div>
+        </td>
+        <td class="px-3 py-2">
+          <button onclick="adminViewComments('${id}')" class="px-3 py-1 rounded-lg text-xs font-bold cursor-pointer" style="background:#003087;color:white">View Comments</button>
+        </td>
+      </tr>`;
+    }).join('');
+
+  // Subject stats
+  const subjectStats = {};
+  SUBJECTS.forEach(s => { subjectStats[s.classCode] = { ...s, scores: [], count: 0 }; });
+  allEvals.forEach(ev => {
+    if (subjectStats[ev.classCode]) {
+      const avg = ALL_CRITERIA.reduce((s,c) => s+(ev.scores[c]||0), 0) / ALL_CRITERIA.length;
+      subjectStats[ev.classCode].scores.push(avg);
+      subjectStats[ev.classCode].count++;
+    }
+  });
+  const subjectRows = Object.values(subjectStats)
+    .filter(s => adminFilterSubject === 'all' || s.classCode === adminFilterSubject)
+    .map(s => {
+      const avg = s.scores.length ? (s.scores.reduce((a,b)=>a+b,0)/s.scores.length).toFixed(2) : 'N/A';
+      return `<tr>
+        <td class="px-3 py-2">${s.classCode}</td>
+        <td class="px-3 py-2">${s.subjectCode}</td>
+        <td class="px-3 py-2">${s.description}</td>
+        <td class="px-3 py-2">${s.faculty}</td>
+        <td class="px-3 py-2">${s.count}</td>
+        <td class="px-3 py-2 font-bold" style="color:#003087">${avg}</td>
+      </tr>`;
+    }).join('');
+
+  const facultyOptions = Object.entries(facultyStats).map(([id,s]) => `<option value="${id}" ${adminFilterFaculty===id?'selected':''}>${escHTML(s.name)}</option>`).join('');
+  const subjectOptions = Object.values(subjectStats).map(s => `<option value="${s.classCode}" ${adminFilterSubject===s.classCode?'selected':''}>${escHTML(s.subjectCode + ' — ' + s.description)}</option>`).join('');
+
+  app().innerHTML = `<div class="flex flex-col min-h-screen fade-in">
+    ${appHeader('Admin Dashboard')}
+    <div class="flex-1 overflow-y-auto px-9 py-6">
+      <div class="text-xl font-bold mb-1" style="color:#1A1A2E">Admin Analytics Dashboard</div>
+      <div class="text-sm mb-6" style="color:#6B7280">${SCHOOL_YEAR} &nbsp;•&nbsp; ${SEMESTER}</div>
+
+      <!-- KPI Cards -->
+      <div class="grid grid-cols-3 gap-4 mb-8">
+        <div class="rounded-2xl p-5 text-center" style="background:white;border:1.5px solid #D1D9E6">
+          <div class="text-3xl font-bold" style="color:#003087">${totalSubs}</div>
+          <div class="text-xs mt-1" style="color:#6B7280">Total Submissions</div>
+        </div>
+        <div class="rounded-2xl p-5 text-center" style="background:white;border:1.5px solid #D1D9E6">
+          <div class="text-3xl font-bold" style="color:#16A34A">${completed}</div>
+          <div class="text-xs mt-1" style="color:#6B7280">Students Completed</div>
+        </div>
+        <div class="rounded-2xl p-5 text-center" style="background:white;border:1.5px solid #D1D9E6">
+          <div class="text-3xl font-bold" style="color:#D97706">${SUBJECTS.length}</div>
+          <div class="text-xs mt-1" style="color:#6B7280">Subjects Monitored</div>
+        </div>
+      </div>
+
+      <!-- Filters -->
+      <div class="flex gap-4 mb-5 flex-wrap">
+        <div class="flex flex-col gap-1">
+          <label class="text-xs font-bold" style="color:#1A1A2E">Filter by Faculty</label>
+          <select onchange="adminFilterFaculty=this.value;renderAdminDashboard()" class="rounded-lg px-3 py-2 text-sm" style="background:#EFF3FA;border:1.5px solid #D1D9E6;color:#1A1A2E">
+            <option value="all">All Faculty</option>${facultyOptions}
+          </select>
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-xs font-bold" style="color:#1A1A2E">Filter by Subject</label>
+          <select onchange="adminFilterSubject=this.value;renderAdminDashboard()" class="rounded-lg px-3 py-2 text-sm" style="background:#EFF3FA;border:1.5px solid #D1D9E6;color:#1A1A2E">
+            <option value="all">All Subjects</option>${subjectOptions}
+          </select>
+        </div>
+        <div class="flex items-end">
+          <button onclick="adminFilterFaculty='all';adminFilterSubject='all';renderAdminDashboard()" class="px-4 py-2 rounded-lg text-xs font-bold cursor-pointer" style="background:#EFF3FA;border:1.5px solid #D1D9E6;color:#003087">Reset Filters</button>
+        </div>
+        <div class="flex items-end">
+          <button onclick="adminExportPDF()" class="px-4 py-2 rounded-lg text-xs font-bold text-white cursor-pointer" style="background:#003087">💾 Export PDF Report</button>
+        </div>
+      </div>
+
+      <!-- Faculty Performance Table -->
+      <div class="section-bar text-sm font-bold mb-3" style="color:#003087">Faculty Performance Overview</div>
+      <div class="rounded-xl overflow-hidden border mb-8" style="border-color:#D1D9E6">
+        <table class="w-full border-collapse text-sm">
+          <thead><tr style="background:#003087">
+            <th class="text-white text-xs font-bold px-3 py-2 text-left">Faculty Name</th>
+            <th class="text-white text-xs font-bold px-3 py-2 text-left">Faculty ID</th>
+            <th class="text-white text-xs font-bold px-3 py-2 text-left">Evaluations</th>
+            <th class="text-white text-xs font-bold px-3 py-2 text-left">Average Score</th>
+            <th class="text-white text-xs font-bold px-3 py-2 text-left">Comments</th>
+          </tr></thead>
+          <tbody>${facultyRows || '<tr><td colspan="5" class="px-3 py-4 text-center text-sm" style="color:#6B7280">No evaluation data yet.</td></tr>'}</tbody>
+        </table>
+      </div>
+
+      <!-- Subject Statistics Table -->
+      <div class="section-bar text-sm font-bold mb-3" style="color:#003087">Subject-Based Statistics</div>
+      <div class="rounded-xl overflow-hidden border mb-8" style="border-color:#D1D9E6">
+        <table class="w-full border-collapse text-sm">
+          <thead><tr style="background:#4a4a4a">
+            <th class="text-white text-xs font-bold px-3 py-2 text-left">Class Code</th>
+            <th class="text-white text-xs font-bold px-3 py-2 text-left">Subject</th>
+            <th class="text-white text-xs font-bold px-3 py-2 text-left">Description</th>
+            <th class="text-white text-xs font-bold px-3 py-2 text-left">Faculty</th>
+            <th class="text-white text-xs font-bold px-3 py-2 text-left">Evaluations</th>
+            <th class="text-white text-xs font-bold px-3 py-2 text-left">Avg. Score</th>
+          </tr></thead>
+          <tbody>${subjectRows}</tbody>
+        </table>
+      </div>
+
+      <!-- Faculty Management -->
+      <div class="section-bar text-sm font-bold mb-3" style="color:#003087">Faculty Account Management</div>
+      <div class="rounded-xl overflow-hidden border mb-4" style="border-color:#D1D9E6">
+        <table class="w-full border-collapse text-sm">
+          <thead><tr style="background:#4a4a4a">
+            <th class="text-white text-xs font-bold px-3 py-2 text-left">Faculty Name</th>
+            <th class="text-white text-xs font-bold px-3 py-2 text-left">Faculty ID</th>
+            <th class="text-white text-xs font-bold px-3 py-2 text-left">Actions</th>
+          </tr></thead>
+          <tbody>
+            ${Object.entries(facultyStats).map(([id, stats]) => `<tr>
+              <td class="px-3 py-2">${escHTML(stats.name)}</td>
+              <td class="px-3 py-2">${id}</td>
+              <td class="px-3 py-2"><button onclick="adminResetFacultyPw('${id}','${escHTML(stats.name)}')" class="px-3 py-1 rounded-lg text-xs font-bold cursor-pointer" style="background:#EFF3FA;border:1.5px solid #D1D9E6;color:#003087">Reset Password</button></td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>`;
+}
+
+function adminViewComments(facultyId) {
+  const allEvals = Store.getAllEvalsForFaculty(facultyId);
+  const stats = { name: SUBJECTS.find(s => s.facultyId === facultyId)?.faculty || facultyId };
+  const commentsHTML = allEvals.length === 0
+    ? '<div class="text-sm text-center py-4" style="color:#6B7280">No comments yet.</div>'
+    : allEvals.map(ev => {
+        const subj = SUBJECTS.find(s => s.classCode === ev.classCode);
+        return `<div class="rounded-xl px-4 py-3 mb-2" style="background:#F9FAFB;border:1.5px solid #D1D9E6">
+          <div class="text-xs font-bold mb-1" style="color:#003087">${subj ? escHTML(subj.subjectCode + ' — ' + subj.description) : 'Unknown'}</div>
+          <div class="text-sm" style="color:#1A1A2E">${escHTML(ev.comments || '(No comment)')}</div>
+        </div>`;
+      }).join('');
+
+  // Modal overlay
+  const modal = document.createElement('div');
+  modal.id = 'adminModal';
+  modal.className = 'fixed inset-0 flex items-center justify-center z-50';
+  modal.style.background = 'rgba(0,0,0,0.4)';
+  modal.innerHTML = `<div class="rounded-2xl p-6 max-w-lg w-full mx-4 max-h-96 overflow-y-auto" style="background:white;border:1.5px solid #D1D9E6">
+    <div class="flex justify-between items-center mb-4">
+      <div class="text-sm font-bold" style="color:#003087">Anonymous Comments — ${escHTML(stats.name)}</div>
+      <button onclick="document.getElementById('adminModal').remove()" class="text-xl font-bold cursor-pointer" style="background:none;border:none;color:#6B7280">×</button>
+    </div>
+    <div class="text-xs mb-3 p-2 rounded-lg" style="background:#E8F0FE;color:#003087">All comments are anonymous. Student identities are never disclosed.</div>
+    ${commentsHTML}
+  </div>`;
+  document.body.appendChild(modal);
+}
+
+function adminResetFacultyPw(facultyId, name) {
+  const newPw = prompt(`Reset password for ${name} (${facultyId}).\nEnter new password (min. 6 characters):`);
+  if (!newPw) return;
+  if (newPw.length < 6) { alert('Password must be at least 6 characters.'); return; }
+  const users = Store.getUsers();
+  const key = facultyId.toUpperCase();
+  if (!users[key]) { alert('Faculty account not found.'); return; }
+  users[key] = { ...users[key], passwordHash: simpleHash(newPw) };
+  Store.setUsers(users);
+  alert(`Password for ${name} has been reset successfully.`);
+}
+
+function adminExportPDF() {
+  const allEvals = Store.getAllEvals();
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
+    doc.setFillColor(0,48,135); doc.rect(0,0,297,22,'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(255,215,0);
+    doc.text('RIZAL TECHNOLOGICAL UNIVERSITY — ADMIN REPORT',148,9,{align:'center'});
+    doc.setFontSize(9); doc.setTextColor(255,255,255);
+    doc.text(`Faculty Evaluation Summary • ${SCHOOL_YEAR} • ${SEMESTER}`,148,16,{align:'center'});
+
+    doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(30,30,30);
+    doc.text(`Total Submissions: ${allEvals.length}    Generated: ${new Date().toLocaleString()}`,14,28);
+
+    // Faculty summary table
+    const facStats = {};
+    SUBJECTS.forEach(s => { if(!facStats[s.facultyId]) facStats[s.facultyId]={name:s.faculty,scores:[]}; });
+    allEvals.forEach(ev => {
+      const subj = SUBJECTS.find(s => s.classCode===ev.classCode);
+      if(subj && facStats[subj.facultyId]) {
+        const avg = ALL_CRITERIA.reduce((s,c)=>s+(ev.scores[c]||0),0)/ALL_CRITERIA.length;
+        facStats[subj.facultyId].scores.push(avg);
+      }
+    });
+    const rows = Object.entries(facStats).map(([id, s]) => {
+      const avg = s.scores.length ? (s.scores.reduce((a,b)=>a+b,0)/s.scores.length).toFixed(2) : 'No data';
+      return [s.name, id, s.scores.length.toString(), avg];
+    });
+
+    doc.autoTable({
+      head:[['Faculty Name','Faculty ID','# Evaluations','Average Score (out of 5)']],
+      body: rows, startY: 34,
+      styles:{fontSize:9,cellPadding:3},
+      headStyles:{fillColor:[0,48,135],textColor:[255,255,255],fontStyle:'bold'},
+      alternateRowStyles:{fillColor:[249,250,251]}
+    });
+    doc.save(`RTU_Admin_Report_${SCHOOL_YEAR.replace(/[^a-z0-9]/gi,'_')}.pdf`);
+  } catch(err) {
+    alert('PDF export failed: ' + err.message);
+  }
+}
+
+/* ================================================================
+   LOGOUT
+================================================================ */
+function doLogout() {
+  AppState.logout();
+  renderLogin();
+}
+
+/* ================================================================
+   BOOT
+================================================================ */
+seedAccounts();
+renderLogin();
+</script>
+</body>
+</html>
